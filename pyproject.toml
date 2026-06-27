@@ -28,15 +28,22 @@ serverapp = "pytorchexample.server_app:app"
 clientapp = "pytorchexample.client_app:app"
 
 [tool.flwr.app.config]
-num-server-rounds = 50
-fraction-evaluate = 0.5
-local-epochs = 5
-learning-rate = 1e-3
-batch-size = 256
+# Server Params
+num-server-rounds = 1
+fraction-evaluate = 1
 save-model = false
+# DP Settings
 epsilon = 1.0
 delta = 1e-5
 max_grad_norm = 1.2
 max_physical_batch_size = 32
-dp-enabled = 1
+dp-enabled = 0
+# Parameters for the partitioner
+alpha = 0.5
+batch-size = 256
+min_partition_size = 128
+# Training Parameters
+local-epochs = 1
+learning-rate = 1e-3
+
 
