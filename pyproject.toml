@@ -31,6 +31,7 @@ clientapp = "pytorchexample.client_app:app"
 # Server Params
 num-server-rounds = 1
 fraction-evaluate = 1
+fraction-train = 1
 save-model = false
 # DP Settings
 epsilon = 1.0
