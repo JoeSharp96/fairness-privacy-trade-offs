@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from datasets import load_dataset
 from flwr_datasets import FederatedDataset
-from flwr_datasets.partitioner import IidPartitioner
+from flwr_datasets.partitioner import IidPartitioner, DirichletPartitioner
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, Normalize, ToTensor
 from opacus.utils.batch_memory_manager import BatchMemoryManager
@@ -43,13 +43,20 @@ def apply_transforms(batch):
     batch["img"] = [pytorch_transforms(img) for img in batch["img"]]
     return batch
 
-
-def load_data(partition_id: int, num_partitions: int, batch_size: int):
+# Add the partition_by variable. To run this on two datasets it will have to be variable.
+def load_data(partition_id: int, num_partitions: int, batch_size: int, alpha: float, min_partition_size: int):
     """Load partition CIFAR10 data."""
     # Only initialize `FederatedDataset` once
     global fds
     if fds is None:
-        partitioner = IidPartitioner(num_partitions=num_partitions)
+        partitioner = DirichletPartitioner(
+            num_partitions=num_partitions,
+            partition_by='label',
+            alpha=alpha,
+            min_partition_size=min_partition_size,
+            self_balancing=True,
+            seed=5
+        )
         fds = FederatedDataset(
             dataset="uoft-cs/cifar10",
             partitioners={"train": partitioner},
@@ -106,7 +113,7 @@ def train(net, trainloader, epochs, lr, device, max_physical_batch_size, context
     """Train the model on the training set."""
     net.to(device)  # move model to GPU if available
     criterion = torch.nn.CrossEntropyLoss().to(device)
-    optimizer = torch.optim.RMSprop(net.parameters(), lr=lr)
+    optimizer = torch.optim.SGD(net.parameters(), lr=0.01, momentum=0.9)
     running_loss = 0.0
     i = 0
     # DP Enabled training
@@ -119,7 +126,7 @@ def train(net, trainloader, epochs, lr, device, max_physical_batch_size, context
             epochs = epochs,
             target_epsilon=context.run_config["epsilon"],
             target_delta=context.run_config["delta"],
-            max_grad_norm=context.run_config["max_grad_norm"]
+            max_grad_norm=context.run_config["max-grad-norm"]
         )
         net.train()
         with BatchMemoryManager(

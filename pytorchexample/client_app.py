@@ -16,7 +16,6 @@ app = ClientApp()
 @app.train()
 def train(msg: Message, context: Context):
     """Train the model on local data."""
-    
     # Load the model and initialize it with the received weights
     model = Net()
     model.load_state_dict(msg.content["arrays"].to_torch_state_dict())
@@ -27,9 +26,11 @@ def train(msg: Message, context: Context):
     partition_id = context.node_config["partition-id"]
     num_partitions = context.node_config["num-partitions"]
     batch_size = context.run_config["batch-size"]
-    trainloader, _ = load_data(partition_id, num_partitions, batch_size)
+    min_partition_size = context.run_config["min-partition-size"]
+    alpha = context.run_config["alpha"]
+    trainloader, _ = load_data(partition_id, num_partitions, batch_size, alpha, min_partition_size)
 
-    max_physical_batch_size = context.run_config["max_physical_batch_size"]
+    max_physical_batch_size = context.run_config["max-physical-batch-size"]
     lr = msg.content["config"]["lr"]
     epochs = context.run_config["local-epochs"]
     train_loss = train_fn(
@@ -56,8 +57,8 @@ def train(msg: Message, context: Context):
     # Privacy hyperparams
     epsilon = context.run_config["epsilon"]
     delta = context.run_config["delta"]
-    max_grad_norm = context.run_config["max_grad_norm"]
-    max_physical_batch_size = context.run_config["max_physical_batch_size"]
+    max_grad_norm = context.run_config["max-grad-norm"]
+    max_physical_batch_size = context.run_config["max-physical-batch-size"]
     lr = msg.content["config"]["lr"]
     epochs = context.run_config["local-epochs"]
     # Privacy engine
@@ -71,7 +72,7 @@ def train(msg: Message, context: Context):
         epochs = epochs,
         target_epsilon=epsilon,
         target_delta=delta,
-        max_grad_norm=max_grad_norm
+        max_grad_norm=max-grad-norm
     )
 
     # Call the training function
@@ -105,7 +106,9 @@ def evaluate(msg: Message, context: Context):
     partition_id = context.node_config["partition-id"]
     num_partitions = context.node_config["num-partitions"]
     batch_size = context.run_config["batch-size"]
-    _, valloader = load_data(partition_id, num_partitions, batch_size)
+    min_partition_size = context.run_config["min-partition-size"]
+    alpha = context.run_config["alpha"]
+    _, valloader = load_data(partition_id, num_partitions, batch_size, alpha, min_partition_size)
 
     # Call the evaluation function
     eval_loss, eval_acc = test_fn(

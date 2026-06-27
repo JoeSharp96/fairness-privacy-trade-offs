@@ -17,9 +17,10 @@ app = ServerApp()
 @app.main()
 def main(grid: Grid, context: Context) -> None:
     """Main entry point for the ServerApp."""
-
+    print(context.run_config)
     # Read run config
     fraction_evaluate: float = context.run_config["fraction-evaluate"]
+    fraction_train: float = context.run_config["fraction-train"]
     num_rounds: int = context.run_config["num-server-rounds"]
     lr: float = context.run_config["learning-rate"]
 
@@ -28,7 +29,8 @@ def main(grid: Grid, context: Context) -> None:
     arrays = ArrayRecord(global_model.state_dict())
 
     # Initialize FedAvg strategy
-    strategy = FedAvg(fraction_evaluate=fraction_evaluate)
+    # Fraction_train determines how many possible nodes will be used in training.
+    strategy = FedAvg(fraction_evaluate=fraction_evaluate, fraction_train=fraction_train)
 
     # Start strategy, run FedAvg for `num_rounds`
     result = strategy.start(
@@ -44,8 +46,10 @@ def main(grid: Grid, context: Context) -> None:
         print("\nSaving final model to disk...")
         state_dict = result.arrays.to_torch_state_dict()
         torch.save(state_dict, "final_model.pt")
-
+    
+    # Pretty sure this is my script to produce graphs. Make this it's own function.
     agg_acc = []
+    print(result)
     for round in result.evaluate_metrics_clientapp.values():
         agg_acc.append(round['eval_acc'])
 
