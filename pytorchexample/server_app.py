@@ -3,7 +3,7 @@
 import torch
 from flwr.app import ArrayRecord, ConfigRecord, Context, MetricRecord
 from flwr.serverapp import Grid, ServerApp
-from flwr.serverapp.strategy import FedAvg
+from flwr.serverapp.strategy import FedAvg, QFedAvg
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -30,13 +30,13 @@ def main(grid: Grid, context: Context) -> None:
 
     # Initialize FedAvg strategy
     # Fraction_train determines how many possible nodes will be used in training.
-    strategy = FedAvg(fraction_evaluate=fraction_evaluate, fraction_train=fraction_train)
+    strategy = choose_strat(context,lr,fraction_evaluate,fraction_train)
 
     # Start strategy, run FedAvg for `num_rounds`
     result = strategy.start(
         grid=grid,
         initial_arrays=arrays,
-        train_config=ConfigRecord({"lr": lr}),
+        #train_config=ConfigRecord({"lr": lr}),
         num_rounds=num_rounds,
         evaluate_fn=global_evaluate,
     )
@@ -87,3 +87,20 @@ def global_evaluate(server_round: int, arrays: ArrayRecord) -> MetricRecord:
 
     # Return the evaluation metrics
     return MetricRecord({"accuracy": test_acc, "loss": test_loss})
+
+def choose_strat(context,lr,fraction_evaluate,fraction_train):
+    strategy = context.run_config['strategy']
+    if strategy == 'q-fedavg':
+        q=context.run_config["q"]
+        return QFedAvg(
+            client_learning_rate=lr,
+            q=q,
+            fraction_evaluate=fraction_evaluate,
+            fraction_train=fraction_train,
+            train_loss_key = "train_loss"
+            )
+    else:
+        return FedAvg(
+            fraction_evaluate=fraction_evaluate,
+            fraction_train=fraction_train
+            )

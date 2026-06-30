@@ -7,30 +7,36 @@ from datasets import load_dataset
 from flwr_datasets import FederatedDataset
 from flwr_datasets.partitioner import IidPartitioner, DirichletPartitioner
 from torch.utils.data import DataLoader
-from torchvision.transforms import Compose, Normalize, ToTensor
+from torchvision.transforms import (
+    Compose,
+    Normalize,
+    ToTensor,
+)
 from opacus.utils.batch_memory_manager import BatchMemoryManager
 from opacus import PrivacyEngine
 
 
+FM_NORMALIZATION = ((0.1307,), (0.3081,))
+TRANSFORMS = Compose([ToTensor(), Normalize(*FM_NORMALIZATION)])
+
+# I probably will need a unique model to work with every dataset I'm going to use :)
 class Net(nn.Module):
     """Model (simple CNN adapted from 'PyTorch: A 60 Minute Blitz')"""
 
     def __init__(self):
-        super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(3, 6, 5)
+        super().__init__()
+        self.conv1 = nn.Conv2d(1, 16, 5)
         self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5)
-        self.fc1 = nn.Linear(16 * 5 * 5, 120)
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 10)
+        self.conv2 = nn.Conv2d(16, 32, 5)
+        self.fc1 = nn.Linear(32 * 4 * 4, 128)
+        self.fc2 = nn.Linear(128, 10)
 
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
-        x = x.view(-1, 16 * 5 * 5)
+        x = x.view(-1, 32 * 4 * 4)
         x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        return self.fc3(x)
+        return self.fc2(x)
 
 
 fds = None  # Cache FederatedDataset
@@ -38,9 +44,10 @@ fds = None  # Cache FederatedDataset
 pytorch_transforms = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
 
+
 def apply_transforms(batch):
     """Apply transforms to the partition from FederatedDataset."""
-    batch["img"] = [pytorch_transforms(img) for img in batch["img"]]
+    batch["image"] = [TRANSFORMS(img) for img in batch["image"]]
     return batch
 
 # Add the partition_by variable. To run this on two datasets it will have to be variable.
@@ -53,12 +60,10 @@ def load_data(partition_id: int, num_partitions: int, batch_size: int, alpha: fl
             num_partitions=num_partitions,
             partition_by='label',
             alpha=alpha,
-            min_partition_size=min_partition_size,
-            self_balancing=True,
-            seed=5
+            seed=42
         )
         fds = FederatedDataset(
-            dataset="uoft-cs/cifar10",
+            dataset="zalando-datasets/fashion_mnist",
             partitioners={"train": partitioner},
         )
     partition = fds.load_partition(partition_id)
@@ -76,9 +81,9 @@ def load_data(partition_id: int, num_partitions: int, batch_size: int, alpha: fl
 def load_centralized_dataset():
     """Load test set and return dataloader."""
     # Load entire test set
-    test_dataset = load_dataset("uoft-cs/cifar10", split="test")
+    test_dataset = load_dataset("zalando-datasets/fashion_mnist", split="test")
     dataset = test_dataset.with_format("torch").with_transform(apply_transforms)
-    return DataLoader(dataset, batch_size=128)
+    return DataLoader(dataset, batch_size=64)
 
 """
 def train(net, trainloader, epochs, lr, device, optimizer, max_physical_batch_size,epsilon,delta,privacy_engine):
@@ -113,7 +118,7 @@ def train(net, trainloader, epochs, lr, device, max_physical_batch_size, context
     """Train the model on the training set."""
     net.to(device)  # move model to GPU if available
     criterion = torch.nn.CrossEntropyLoss().to(device)
-    optimizer = torch.optim.SGD(net.parameters(), lr=0.01, momentum=0.9)
+    optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9)
     running_loss = 0.0
     i = 0
     # DP Enabled training
@@ -137,7 +142,7 @@ def train(net, trainloader, epochs, lr, device, max_physical_batch_size, context
             for _ in range(epochs):
                 for batch in memory_safe_data_loader:
                     optimizer.zero_grad()
-                    images = batch['img'].to(device)
+                    images = batch['image'].to(device)
                     labels = batch['label'].to(device)
                     loss = criterion(net(images), labels)
                     loss.backward()
@@ -153,7 +158,7 @@ def train(net, trainloader, epochs, lr, device, max_physical_batch_size, context
         for _ in range(epochs):
             for batch in trainloader:
                 optimizer.zero_grad()
-                images = batch['img'].to(device)
+                images = batch['image'].to(device)
                 labels = batch['label'].to(device)
                 loss = criterion(net(images), labels)
                 loss.backward()
@@ -170,7 +175,7 @@ def test(net, testloader, device):
     correct, loss = 0, 0.0
     with torch.no_grad():
         for batch in testloader:
-            images = batch["img"].to(device)
+            images = batch["image"].to(device)
             labels = batch["label"].to(device)
             outputs = net(images)
             loss += criterion(outputs, labels).item()

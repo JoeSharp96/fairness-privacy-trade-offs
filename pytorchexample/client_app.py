@@ -31,7 +31,7 @@ def train(msg: Message, context: Context):
     trainloader, _ = load_data(partition_id, num_partitions, batch_size, alpha, min_partition_size)
 
     max_physical_batch_size = context.run_config["max-physical-batch-size"]
-    lr = msg.content["config"]["lr"]
+    lr = context.run_config['learning-rate']
     epochs = context.run_config["local-epochs"]
     train_loss = train_fn(
         model,
@@ -42,6 +42,7 @@ def train(msg: Message, context: Context):
         max_physical_batch_size,
         context
     )
+    print(train_loss)
 
     # Construct and return reply Message
     #arrays = {key[8:]: value for key, value in model.state_dict().items()}
