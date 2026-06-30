@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from pytorchexample.task import Net, load_centralized_dataset, test, output_dir, save_metrics
+from pytorchexample.task import Net, load_centralized_dataset, test, output_dir, save_metrics, save_graphs
 
 # Create ServerApp
 app = ServerApp()
@@ -51,6 +51,7 @@ def main(grid: Grid, context: Context) -> None:
         torch.save(state_dict, "final_model.pt")
 
     save_metrics(result, save_path, num_rounds)
+    save_graphs(save_path,num_rounds)
     
     # Pretty sure this is my script to produce graphs. Make this it's own function.
     agg_acc = []
