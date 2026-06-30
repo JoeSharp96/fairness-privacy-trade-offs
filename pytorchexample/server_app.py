@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from pytorchexample.task import Net, load_centralized_dataset, test
+from pytorchexample.task import Net, load_centralized_dataset, test, output_dir, save_metrics
 
 # Create ServerApp
 app = ServerApp()
@@ -32,6 +32,9 @@ def main(grid: Grid, context: Context) -> None:
     # Fraction_train determines how many possible nodes will be used in training.
     strategy = choose_strat(context,lr,fraction_evaluate,fraction_train)
 
+    # Create directory to save results and config
+    save_path = output_dir(config=context.run_config)
+
     # Start strategy, run FedAvg for `num_rounds`
     result = strategy.start(
         grid=grid,
@@ -46,10 +49,12 @@ def main(grid: Grid, context: Context) -> None:
         print("\nSaving final model to disk...")
         state_dict = result.arrays.to_torch_state_dict()
         torch.save(state_dict, "final_model.pt")
+
+    save_metrics(result, save_path, num_rounds)
     
     # Pretty sure this is my script to produce graphs. Make this it's own function.
     agg_acc = []
-    print(result)
+
     for round in result.evaluate_metrics_clientapp.values():
         agg_acc.append(round['eval_acc'])
 
