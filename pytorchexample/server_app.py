@@ -17,7 +17,6 @@ app = ServerApp()
 @app.main()
 def main(grid: Grid, context: Context) -> None:
     """Main entry point for the ServerApp."""
-    print(context.run_config)
     # Read run config
     fraction_evaluate: float = context.run_config["fraction-evaluate"]
     fraction_train: float = context.run_config["fraction-train"]
@@ -52,30 +51,6 @@ def main(grid: Grid, context: Context) -> None:
 
     save_metrics(result, save_path, num_rounds)
     save_graphs(save_path,num_rounds)
-    
-    # Pretty sure this is my script to produce graphs. Make this it's own function.
-    agg_acc = []
-
-    for round in result.evaluate_metrics_clientapp.values():
-        agg_acc.append(round['eval_acc'])
-
-    epochs = context.run_config['local-epochs']
-    if context.run_config['dp-enabled']:
-        epsilon = context.run_config['epsilon']
-        text = f"Sever rounds = {num_rounds}\nLocal epochs = {epochs}\nε = {epsilon}"
-    else:
-        text = f"Sever rounds = {num_rounds}\nLocal epochs = {epochs}\nNon-DP"
-
-    plt.figure(figsize=(5, 5))
-    plt.plot(pd.DataFrame(np.array(agg_acc)), marker='o', color='b', label='Round Accuracy')
-    plt.ylim(0, 1)
-    plt.xlabel('Round')
-    plt.ylabel('Accuracy')
-    plt.title('Training Accuracy vs Round')
-    plt.text(0,0.85,text)
-    plt.grid(True)
-    plt.legend()
-    plt.savefig("output.jpg")
 
 def global_evaluate(server_round: int, arrays: ArrayRecord) -> MetricRecord:
     """Evaluate model on central data."""
