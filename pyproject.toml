@@ -29,7 +29,7 @@ clientapp = "pytorchexample.client_app:app"
 
 [tool.flwr.app.config]
 # Server Params
-num-server-rounds = 20
+num-server-rounds = 5
 fraction-evaluate = 0.25
 fraction-train = 0.5
 save-model = false

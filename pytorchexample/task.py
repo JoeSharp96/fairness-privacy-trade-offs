@@ -4,7 +4,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from datasets import load_dataset
-from flwr.serverapp.strategy import Result
 from flwr_datasets import FederatedDataset
 from flwr_datasets.partitioner import IidPartitioner, DirichletPartitioner
 from torch.utils.data import DataLoader
@@ -15,10 +14,6 @@ from torchvision.transforms import (
 )
 from opacus.utils.batch_memory_manager import BatchMemoryManager
 from opacus import PrivacyEngine
-from flwr.app import UserConfig
-from datetime import datetime
-from pathlib import Path
-import json
 
 
 FM_NORMALIZATION = ((0.1307,), (0.3081,))
@@ -188,34 +183,3 @@ def test(net, testloader, device):
     accuracy = correct / len(testloader.dataset)
     loss = loss / len(testloader)
     return loss, accuracy
-
-def output_dir(config: UserConfig) -> tuple[Path, str]:
-    """Create directory for output graph and data"""
-    current_time = datetime.now()
-    out_dir = current_time.strftime("%Y-%m-%d/%H-%M-%S")
-    path = Path.cwd() / f"output/{out_dir}"
-    path.mkdir(parents=True, exist_ok=False)
-
-    with open(f"{path}/run_config.json","w",encoding="utf-8") as fp:
-        json.dump(config,fp)
-
-    return path
-
-def save_metrics(result: Result, save_path, rounds):
-    """Save metrics"""
-    results = []
-    for i in range(1,rounds+1):
-        train_metrics = dict(result.train_metrics_clientapp.get(i,{}))
-        eval_client_metrics = dict(result.evaluate_metrics_clientapp.get(i,{}))
-        eval_server_metrics = dict(result.evaluate_metrics_serverapp.get(i,{}))
-        round_result = {
-            "round": i,
-            "train_metrics": train_metrics,
-            "eval_client_metrics": eval_client_metrics,
-            "eval_server_metrics": eval_server_metrics
-        }
-        results.append(round_result)
-    
-    with open(f"{save_path}/results.json", "w", encoding="utf-8") as fp:
-        json.dump(results, fp)
-
