@@ -74,3 +74,22 @@ Follow this [how-to guide](https://flower.ai/docs/framework/how-to-run-flower-wi
 
 If you are already familiar with how the Deployment Engine works, you may want to learn how to run it using Docker. Check out the [Flower with Docker](https://flower.ai/docs/framework/docker/index.html) documentation.
 # fairness-privacy-trade-offs
+
+
+## Ideal Non-IID Hyperparameters as of 01/07/2026
+Dataset = FMNIST,
+Alpha = 0.5
+
+|       | FedAvg | q-FedAvg |
+|---    |---    |   ---|
+|LR | 0.001 | 0.005 |
+|q| 0 | 0.001 |
+
+## Ideal IID Hyperparameters as of 01/07/2026
+Dataset = FMNIST,
+Alpha = 1000
+
+|       | FedAvg | q-FedAvg |
+|---    |---    |   ---|
+|LR | 0.05 | 0.05 |
+|q| 0 | 0.005 |
