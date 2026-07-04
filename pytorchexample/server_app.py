@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from pytorchexample.task import Net, load_centralized_dataset, test, output_dir, save_metrics, save_graphs
+from utils.reporting import output_dir, save_metrics, save_graphs
 
 # Create ServerApp
 app = ServerApp()
@@ -85,3 +86,7 @@ def choose_strat(context,lr,fraction_evaluate,fraction_train):
             fraction_evaluate=fraction_evaluate,
             fraction_train=fraction_train
             )
+
+def loss_disparity():
+    """Calculate the average loss disparity of client data under the global model."""
+
