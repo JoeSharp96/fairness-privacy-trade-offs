@@ -122,7 +122,15 @@ def train(net, trainloader, epochs, lr, device, optimizer, max_physical_batch_si
     return avg_trainloss
 """
 
-def train(net, trainloader, epochs, lr, device, max_physical_batch_size, context):
+def ditto_train(net, lr, lmbda, global_params):
+    with torch.no_grad():
+        for p, g_p, in zip(net.parameters(), global_params):
+            update = p - lr * (p.grad + lmbda * torch.dist(p, g_p, p=2))
+            p.copy_(update)
+    return
+
+
+def train(net, trainloader, epochs, lr, device, max_physical_batch_size, context, ditto = None, global_params = None):
     """Train the model on the training set."""
     net.to(device)  # move model to GPU if available
     criterion = torch.nn.CrossEntropyLoss().to(device)
@@ -170,6 +178,12 @@ def train(net, trainloader, epochs, lr, device, max_physical_batch_size, context
                 labels = batch['label'].to(device)
                 loss = criterion(net(images), labels)
                 loss.backward()
+
+                # Ditto
+                if ditto is not None:
+                    ditto_train(net, ditto["lr"], ditto["lambda"], global_params)
+
+
                 optimizer.step()
                 running_loss += loss.item()
             avg_trainloss = running_loss / (epochs * len(trainloader))
@@ -186,7 +200,7 @@ def test(net, testloader, device):
             images = batch["image"].to(device)
             labels = batch["label"].to(device)
             outputs = net(images)
-            loss += criterion(outputs, labels).item()
+            loss += criterion(outputs, labels).item() # For ditto, I'd need to add the lambda value by the model distance norm value
             correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()
     accuracy = correct / len(testloader.dataset)
     loss = loss / len(testloader)
