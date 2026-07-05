@@ -7,8 +7,8 @@ from flwr.serverapp.strategy import FedAvg, QFedAvg
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-from pytorchexample.task import Net, load_centralized_dataset, test, output_dir, save_metrics, save_graphs
+from strategies.custom import CustomFedAvg
+from pytorchexample.task import Net, load_centralized_dataset, test
 from utils.reporting import output_dir, save_metrics, save_graphs
 
 # Create ServerApp
@@ -32,11 +32,10 @@ def main(grid: Grid, context: Context) -> None:
     # Fraction_train determines how many possible nodes will be used in training.
     strategy = choose_strat(context,lr,fraction_evaluate,fraction_train)
 
-    # Create directory to save results and config
-    save_path = output_dir(config=context.run_config)
+    
 
     # Start strategy, run FedAvg for `num_rounds`
-    result = strategy.start(
+    result, individual_metrics = strategy.start(
         grid=grid,
         initial_arrays=arrays,
         #train_config=ConfigRecord({"lr": lr}),
@@ -44,13 +43,21 @@ def main(grid: Grid, context: Context) -> None:
         evaluate_fn=global_evaluate,
     )
 
+    loss_disparity, acc_disparity = get_disparity(
+        individual_metrics,
+        result.evaluate_metrics_clientapp[num_rounds]["eval_acc"],
+        result.evaluate_metrics_clientapp[num_rounds]["eval_loss"]
+        )
+
     if context.run_config["save-model"]:
         # Save final model to disk
         print("\nSaving final model to disk...")
         state_dict = result.arrays.to_torch_state_dict()
         torch.save(state_dict, "final_model.pt")
 
-    save_metrics(result, save_path, num_rounds)
+    # Create directory to save results and config
+    save_path = output_dir(config=context.run_config)
+    save_metrics(result, save_path, num_rounds, loss_disparity, acc_disparity)
     save_graphs(save_path,num_rounds)
 
 def global_evaluate(server_round: int, arrays: ArrayRecord) -> MetricRecord:
@@ -82,11 +89,19 @@ def choose_strat(context,lr,fraction_evaluate,fraction_train):
             train_loss_key = "train_loss"
             )
     else:
-        return FedAvg(
+        return CustomFedAvg(
             fraction_evaluate=fraction_evaluate,
             fraction_train=fraction_train
             )
 
-def loss_disparity():
-    """Calculate the average loss disparity of client data under the global model."""
-
+def get_disparity(individual_eval_metrics, agg_eval_acc, agg_eval_loss):
+    """Calculate loss and accuracy disparity of global model across client local data."""
+    num_clients = len(individual_eval_metrics['client_losses'])
+    ld = 0.0
+    ad = 0.0
+    for i in range(num_clients):
+        ld += (individual_eval_metrics['client_losses'][i] - agg_eval_loss) ** 2
+        ad += (individual_eval_metrics['client_acc'][i] - agg_eval_acc) ** 2
+    ld = ld / num_clients
+    ad = ad / num_clients
+    return ld, ad

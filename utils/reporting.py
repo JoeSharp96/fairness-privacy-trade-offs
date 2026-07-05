@@ -6,7 +6,7 @@ import json
 import pandas as pd
 import matplotlib.pyplot as plt
 
-def output_dir(config: UserConfig) -> tuple[Path, str]:
+def output_dir(config):
     """Create directory for output graph and data"""
     current_time = datetime.now()
     out_dir = current_time.strftime("%Y-%m-%d/%H-%M-%S")
@@ -18,9 +18,10 @@ def output_dir(config: UserConfig) -> tuple[Path, str]:
 
     return path
 
-def save_metrics(result, save_path, rounds):
-    """Save metrics"""
-    results = {}
+def save_metrics(result, save_path, rounds, loss_disparity=None, acc_disparity=None):
+    """Save metrics to output directory as JSON file"""
+    results = {"disparity": {"loss_disparity": loss_disparity, "acc_disparity": acc_disparity},
+               "round_metrics": {}}
     for i in range(1,rounds+1):
         train_metrics = dict(result.train_metrics_clientapp.get(i,{}))
         eval_client_metrics = dict(result.evaluate_metrics_clientapp.get(i,{}))
@@ -32,7 +33,7 @@ def save_metrics(result, save_path, rounds):
             "eval_server_loss": eval_server_metrics["loss"],
             "eval_server_acc": eval_server_metrics["accuracy"]
         }
-        results[i] = round_result
+        results["round_metrics"][i] = round_result
     
     with open(f"{save_path}/results.json", "w", encoding="utf-8") as fp:
         json.dump(results, fp)
@@ -40,7 +41,8 @@ def save_metrics(result, save_path, rounds):
 def save_graphs(save_path, rounds):
     """Creates matplotlib graphs of results and saves them as JPG files"""
     with open(f"{save_path}/results.json", "r") as jsonfile:
-        df = pd.read_json(jsonfile, orient="index")
+        data = json.load(jsonfile)
+        df = pd.DataFrame.from_dict(data["round_metrics"], orient="index")
         #results = json.load(jsonfile)
     
     with open(f"{save_path}/run_config.json","r") as jsonfile:
