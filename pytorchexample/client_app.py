@@ -75,7 +75,7 @@ def train(msg: Message, context: Context):
     }
 
     _ = train_fn(
-        model,
+        personalised_model,
         trainloader,
         ditto_variables["s"],
         lr,
@@ -88,41 +88,6 @@ def train(msg: Message, context: Context):
     context.state["personalised_params"] = ArrayRecord(personalised_model.state_dict())
 
     return Message(content=content, reply_to=msg)
-"""
-    # Privacy hyperparams
-    epsilon = context.run_config["epsilon"]
-    delta = context.run_config["delta"]
-    max_grad_norm = context.run_config["max-grad-norm"]
-    max_physical_batch_size = context.run_config["max-physical-batch-size"]
-    lr = msg.content["config"]["lr"]
-    epochs = context.run_config["local-epochs"]
-    # Privacy engine
-    privacy_engine = PrivacyEngine()
-    optimizer = torch.optim.RMSprop(model.parameters(), lr=lr)
-
-    model, optimizer, trainloader = privacy_engine.make_private_with_epsilon(
-        module=model,
-        optimizer=optimizer,
-        data_loader=trainloader,
-        epochs = epochs,
-        target_epsilon=epsilon,
-        target_delta=delta,
-        max_grad_norm=max-grad-norm
-    )
-
-    # Call the training function
-    train_loss = train_fn(
-        model,
-        trainloader,
-        epochs,
-        lr,
-        device,
-        optimizer,
-        max_physical_batch_size,
-        epsilon,
-        delta,
-        privacy_engine
-    )"""
 
 
 
