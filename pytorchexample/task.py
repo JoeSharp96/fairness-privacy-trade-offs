@@ -125,7 +125,7 @@ def train(net, trainloader, epochs, lr, device, optimizer, max_physical_batch_si
 
 
 
-def train(net, trainloader, epochs, lr, device, max_physical_batch_size, context, ditto = None, global_params = None):
+def train(net, trainloader, epochs, lr, device, max_physical_batch_size, context, lmbda = None, global_params = None):
     """Train the model on the training set."""
     net.to(device)  # move model to GPU if available
     criterion = torch.nn.CrossEntropyLoss().to(device)
@@ -183,8 +183,8 @@ def train(net, trainloader, epochs, lr, device, max_physical_batch_size, context
                 loss.backward()
 
                 # Ditto
-                if ditto is not None:
-                    ditto_train(ditto["lr"], ditto["lambda"], global_params)
+                if lmbda is not None:
+                    ditto_train(lr, lmbda, global_params)
 
 
                 optimizer.step()

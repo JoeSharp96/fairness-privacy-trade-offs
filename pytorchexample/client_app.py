@@ -24,11 +24,13 @@ def train(msg: Message, context: Context):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    # Check for personalised parameters. If none found, intialise with global model parameters.
-    if "personalised_params" not in context.state:
-        context.state["personalised_params"] = ArrayRecord(model.state_dict())
-    # Store this rounds global params to bound personalised model.
-    global_params = model.parameters()
+    if msg.content["config"]["ditto"]:
+        # Store this rounds global params to bound personalised model.
+        global_params = model.parameters()
+        ditto_model = Net()
+        # Check for personalised parameters. If none found, intialise with global model parameters.
+        if "ditto_params" not in context.state:
+            context.state["ditto_params"] = ArrayRecord(ditto_model.state_dict())
 
     # Load the data
     partition_id = context.node_config["partition-id"]
@@ -59,33 +61,29 @@ def train(msg: Message, context: Context):
         "num-examples": len(trainloader.dataset),
     }
 
+    if msg.content["config"]["ditto"]:
+        ditto_model.load_state_dict(context.state["ditto_params"].to_torch_state_dict())
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        ditto_model.to(device)
+
+        ditto_train_loss = train_fn(
+            ditto_model,
+            trainloader,
+            msg.content["config"]["ditto_local_epochs"],
+            msg.content["config"]["ditto_lr"],
+            device,
+            max_physical_batch_size,
+            context,
+            msg.content["config"]["ditto_lambda"],
+            global_params
+        )
+        
+        # Save updated personalised model parameters.
+        context.state["ditto_params"] = ArrayRecord(ditto_model.state_dict())
+        metrics["ditto_train_loss"] = ditto_train_loss
+
     metric_record = MetricRecord(metrics)
     content = RecordDict({"arrays": model_record, "metrics": metric_record})
-
-    # Train personalised model with Ditto if enabled.
-    personalised_model = Net()
-    personalised_model.load_state_dict(context.state["personalised_params"].to_torch_state_dict())
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    personalised_model.to(device)
-
-    ditto_variables = {
-        "lr": 0.001,
-        "lambda": 0.01,
-        "s": 5
-    }
-
-    _ = train_fn(
-        personalised_model,
-        trainloader,
-        ditto_variables["s"],
-        lr,
-        device,
-        max_physical_batch_size,
-        context,
-        ditto_variables,
-        global_params
-    )
-    context.state["personalised_params"] = ArrayRecord(personalised_model.state_dict())
 
     return Message(content=content, reply_to=msg)
 
@@ -123,21 +121,24 @@ def evaluate(msg: Message, context: Context):
         "eval_acc": eval_acc,
         "num-examples": len(valloader.dataset),
     }
-    # Test personalised model
-    if "personalised_params" in context.state:
-        personalised_model = Net()
-        personalised_model.load_state_dict(context.state["personalised_params"].to_torch_state_dict())
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        personalised_model.to(device)
 
-        p_eval_loss, p_eval_acc = test_fn(
-            personalised_model,
+    # Test personalised model
+    if msg.content["config"]["ditto"]:
+        ditto_model = Net()
+        if "ditto_params" not in context.state:
+            context.state["ditto_params"] = ArrayRecord(ditto_model.state_dict())
+        ditto_model.load_state_dict(context.state["ditto_params"].to_torch_state_dict())
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        ditto_model.to(device)
+
+        ditto_eval_loss, ditto_eval_acc = test_fn(
+            ditto_model,
             valloader,
             device,
-        )
-
-        print(p_eval_acc)   
-
+        ) 
+        metrics["ditto_eval_loss"] = ditto_eval_loss
+        metrics["ditto_eval_acc"] = ditto_eval_acc
+        
 
     metric_record = MetricRecord(metrics)
     content = RecordDict({"metrics": metric_record})

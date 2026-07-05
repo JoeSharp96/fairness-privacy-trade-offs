@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from strategies.custom import CustomFedAvg
+from strategies.customqfedavg import CustomQFedAvg
 from pytorchexample.task import Net, load_centralized_dataset, test
 from utils.reporting import output_dir, save_metrics, save_graphs
 
@@ -31,14 +32,19 @@ def main(grid: Grid, context: Context) -> None:
     # Initialize FedAvg strategy
     # Fraction_train determines how many possible nodes will be used in training.
     strategy = choose_strat(context,lr,fraction_evaluate,fraction_train)
-
-    
+    train_config = {"ditto": context.run_config["ditto"]}
+    if context.run_config["ditto"]:
+        # Add ditto parameters to train_config if ditto is enabled
+        train_config["ditto_lr"] = context.run_config["ditto-lr"]
+        train_config["ditto_lambda"] = context.run_config["ditto-lambda"]
+        train_config["ditto_local_epochs"] = context.run_config["ditto-local-epochs"]
 
     # Start strategy, run FedAvg for `num_rounds`
     result, individual_metrics = strategy.start(
         grid=grid,
         initial_arrays=arrays,
-        #train_config=ConfigRecord({"lr": lr}),
+        train_config=ConfigRecord(train_config),
+        evaluate_config=ConfigRecord({"ditto": context.run_config["ditto"]}),
         num_rounds=num_rounds,
         evaluate_fn=global_evaluate,
     )
@@ -57,7 +63,7 @@ def main(grid: Grid, context: Context) -> None:
 
     # Create directory to save results and config
     save_path = output_dir(config=context.run_config)
-    save_metrics(result, save_path, num_rounds, loss_disparity, acc_disparity)
+    save_metrics(result, save_path, num_rounds, loss_disparity, acc_disparity, context.run_config["ditto"])
     save_graphs(save_path,num_rounds)
 
 def global_evaluate(server_round: int, arrays: ArrayRecord) -> MetricRecord:
@@ -81,7 +87,7 @@ def choose_strat(context,lr,fraction_evaluate,fraction_train):
     strategy = context.run_config['strategy']
     if strategy == 'q-fedavg':
         q=context.run_config["q"]
-        return QFedAvg(
+        return CustomQFedAvg(
             client_learning_rate=lr,
             q=q,
             fraction_evaluate=fraction_evaluate,

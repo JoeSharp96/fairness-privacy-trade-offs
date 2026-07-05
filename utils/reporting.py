@@ -18,10 +18,11 @@ def output_dir(config):
 
     return path
 
-def save_metrics(result, save_path, rounds, loss_disparity=None, acc_disparity=None):
+def save_metrics(result, save_path, rounds, loss_disparity=None, acc_disparity=None, ditto=False):
     """Save metrics to output directory as JSON file"""
     results = {"disparity": {"loss_disparity": loss_disparity, "acc_disparity": acc_disparity},
-               "round_metrics": {}}
+               "round_metrics": {},
+               "ditto_metrics": {}}
     for i in range(1,rounds+1):
         train_metrics = dict(result.train_metrics_clientapp.get(i,{}))
         eval_client_metrics = dict(result.evaluate_metrics_clientapp.get(i,{}))
@@ -34,6 +35,14 @@ def save_metrics(result, save_path, rounds, loss_disparity=None, acc_disparity=N
             "eval_server_acc": eval_server_metrics["accuracy"]
         }
         results["round_metrics"][i] = round_result
+        
+        if ditto:
+            ditto_result = {
+                "ditto_train_loss": train_metrics["ditto_train_loss"],
+                "ditto_eval_client_loss": eval_client_metrics["ditto_eval_loss"],
+                "ditto_eval_client_acc": eval_client_metrics["ditto_eval_acc"]
+            }
+            results["ditto_metrics"][i] = ditto_result
     
     with open(f"{save_path}/results.json", "w", encoding="utf-8") as fp:
         json.dump(results, fp)
