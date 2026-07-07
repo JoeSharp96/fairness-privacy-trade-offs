@@ -14,6 +14,7 @@ from torchvision.transforms import (
 )
 from opacus.utils.batch_memory_manager import BatchMemoryManager
 from opacus import PrivacyEngine
+from utils.models import get_partitioner
 
 
 FM_NORMALIZATION = ((0.1307,), (0.3081,))
@@ -51,16 +52,15 @@ def apply_transforms(batch):
     return batch
 
 # Add the partition_by variable. To run this on two datasets it will have to be variable.
-def load_data(partition_id: int, num_partitions: int, batch_size: int, alpha: float, min_partition_size: int):
+def load_data(partition_id: int, num_partitions: int, batch_size: int, alpha: float, min_partition_size: int, distribution: str):
     """Load partition CIFAR10 data."""
     # Only initialize `FederatedDataset` once
     global fds
     if fds is None:
-        partitioner = DirichletPartitioner(
-            num_partitions=num_partitions,
-            partition_by='label',
-            alpha=alpha,
-            seed=42
+        partitioner = get_partitioner(
+            distribution,
+            num_partitions,
+            alpha
         )
         fds = FederatedDataset(
             dataset="zalando-datasets/fashion_mnist",

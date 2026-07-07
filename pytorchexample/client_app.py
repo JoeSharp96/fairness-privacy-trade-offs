@@ -37,7 +37,8 @@ def train(msg: Message, context: Context):
     batch_size = context.run_config["batch-size"]
     min_partition_size = context.run_config["min-partition-size"]
     alpha = context.run_config["alpha"]
-    trainloader, _ = load_data(partition_id, num_partitions, batch_size, alpha, min_partition_size)
+    distribution = context.run_config["distribution"]
+    trainloader, _ = load_data(partition_id, num_partitions, batch_size, alpha, min_partition_size, distribution)
 
     lr = context.run_config['learning-rate']
     epochs = context.run_config["local-epochs"]
@@ -101,7 +102,8 @@ def evaluate(msg: Message, context: Context):
     batch_size = context.run_config["batch-size"]
     min_partition_size = context.run_config["min-partition-size"]
     alpha = context.run_config["alpha"]
-    _, valloader = load_data(partition_id, num_partitions, batch_size, alpha, min_partition_size)
+    distribution = context.run_config["distribution"]
+    _, valloader = load_data(partition_id, num_partitions, batch_size, alpha, min_partition_size, distribution)
 
     # Call the evaluation function
     eval_loss, eval_acc = test_fn(

@@ -30,32 +30,39 @@ clientapp = "pytorchexample.client_app:app"
 [tool.flwr.app.config]
 # Server Params
 num-server-rounds = 5
+min-available-nodes = 10
 fraction-evaluate = 0.2
 fraction-train = 0.2
-save-model = false
+save-model = true
 strategy = "fedavg"
-min-available-nodes = 10
+
+# Data Distribution settings
+distribution = 'non-iid'
+batch-size = 64
+min-partition-size = 32
+alpha = 0.5
+
+# Q-FedAvg Params
 q = 0.005
+
+# Ditto Parameters
+ditto = false
+ditto-lr = 0.001
+ditto-local-epochs = 1
+ditto-lambda = 0.01
+
+# Training Parameters
+local-epochs = 1
+learning-rate = 0.005
+
 # DP Settings
+dp-enabled = false
+dp-mode = "local"
 epsilon = 8.0
 delta = 1e-5
 max-grad-norm = 1.2
 max-physical-batch-size = 32
-dp-enabled = true
-dp-mode = "local"
 clipping-mode = "flat"
 clipping-lower-bound = 0.1
-# Parameters for the partitioner
-alpha = 0.5
-batch-size = 64
-min-partition-size = 32
-# Training Parameters
-local-epochs = 3
-learning-rate = 0.001
-# Ditto Parameters
-ditto = true
-ditto-lr = 0.001
-ditto-local-epochs = 1
-ditto-lambda = 0.01
 
 
