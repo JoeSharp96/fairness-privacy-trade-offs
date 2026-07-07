@@ -10,6 +10,7 @@ from flwr.common import log, logger
 from flwr.serverapp import Grid
 from flwr.serverapp.strategy import FedAvg, Result, QFedAvg
 from flwr.serverapp.strategy.strategy_utils import log_strategy_start_info, sample_nodes
+from utils.strategy import get_individual_metrics
 
 
 class CustomQFedAvg(QFedAvg):
@@ -154,7 +155,7 @@ class CustomQFedAvg(QFedAvg):
                 if res is not None:
                     result.evaluate_metrics_serverapp[current_round] = res
 
-        individual_metrics = self.get_individual_metrics(evaluate_replies)
+        individual_metrics = get_individual_metrics(evaluate_replies)
 
         log(INFO, "")
         log(INFO, "Strategy execution finished in %.2fs", time.time() - t_start)
@@ -166,13 +167,3 @@ class CustomQFedAvg(QFedAvg):
         log(INFO, "")
 
         return result, individual_metrics
-
-    def get_individual_metrics(self,replies):
-        """Get individual client loss and accuracy from train_replies for fairness metrics calculation."""
-        client_loss = []
-        client_acc = []
-        for reply in replies:
-            client_loss.append(reply.content["metrics"]["eval_loss"])
-            client_acc.append(reply.content["metrics"]["eval_acc"])
-        client_metrics = {"client_losses": client_loss, "client_acc": client_acc}
-        return MetricRecord(client_metrics)

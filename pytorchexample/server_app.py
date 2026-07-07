@@ -3,14 +3,9 @@
 import torch
 from flwr.app import ArrayRecord, ConfigRecord, Context, MetricRecord
 from flwr.serverapp import Grid, ServerApp
-from flwr.serverapp.strategy import FedAvg, QFedAvg
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-from strategies.custom import CustomFedAvg
-from strategies.customqfedavg import CustomQFedAvg
 from pytorchexample.task import Net, load_centralized_dataset, test
 from utils.reporting import output_dir, save_metrics, save_graphs
+from utils.server import get_fl_strategy
 
 # Create ServerApp
 app = ServerApp()
@@ -20,26 +15,16 @@ app = ServerApp()
 def main(grid: Grid, context: Context) -> None:
     """Main entry point for the ServerApp."""
     # Read run config
-    fraction_evaluate: float = context.run_config["fraction-evaluate"]
-    fraction_train: float = context.run_config["fraction-train"]
     num_rounds: int = context.run_config["num-server-rounds"]
-    lr: float = context.run_config["learning-rate"]
 
-    # Load global model
+    # Load global model and intialise parameters
     global_model = Net()
     arrays = ArrayRecord(global_model.state_dict())
 
-    # Initialize FedAvg strategy
-    # Fraction_train determines how many possible nodes will be used in training.
-    strategy = choose_strat(context,lr,fraction_evaluate,fraction_train)
-    train_config = {"ditto": context.run_config["ditto"]}
-    if context.run_config["ditto"]:
-        # Add ditto parameters to train_config if ditto is enabled
-        train_config["ditto_lr"] = context.run_config["ditto-lr"]
-        train_config["ditto_lambda"] = context.run_config["ditto-lambda"]
-        train_config["ditto_local_epochs"] = context.run_config["ditto-local-epochs"]
+    # Initialize FL strategy
+    strategy, train_config = get_fl_strategy(context.run_config)
 
-    # Start strategy, run FedAvg for `num_rounds`
+    # Start strategy for `num_rounds`
     result, individual_metrics = strategy.start(
         grid=grid,
         initial_arrays=arrays,
@@ -49,22 +34,24 @@ def main(grid: Grid, context: Context) -> None:
         evaluate_fn=global_evaluate,
     )
 
+    # Record fairness metrics
     loss_disparity, acc_disparity = get_disparity(
         individual_metrics,
         result.evaluate_metrics_clientapp[num_rounds]["eval_acc"],
         result.evaluate_metrics_clientapp[num_rounds]["eval_loss"]
         )
 
+    # Save model
     if context.run_config["save-model"]:
         # Save final model to disk
         print("\nSaving final model to disk...")
+        save_path = output_dir(config=context.run_config)
         state_dict = result.arrays.to_torch_state_dict()
-        torch.save(state_dict, "final_model.pt")
-
-    # Create directory to save results and config
-    save_path = output_dir(config=context.run_config)
-    save_metrics(result, save_path, num_rounds, loss_disparity, acc_disparity, context.run_config["ditto"])
-    save_graphs(save_path,num_rounds)
+        torch.save(state_dict, f"{save_path}/final_model.pt")
+        save_metrics(result, save_path, num_rounds, loss_disparity, acc_disparity, context.run_config["ditto"])
+        save_graphs(save_path,num_rounds)
+    
+    
 
 def global_evaluate(server_round: int, arrays: ArrayRecord) -> MetricRecord:
     """Evaluate model on central data."""
@@ -82,23 +69,6 @@ def global_evaluate(server_round: int, arrays: ArrayRecord) -> MetricRecord:
 
     # Return the evaluation metrics
     return MetricRecord({"accuracy": test_acc, "loss": test_loss})
-
-def choose_strat(context,lr,fraction_evaluate,fraction_train):
-    strategy = context.run_config['strategy']
-    if strategy == 'q-fedavg':
-        q=context.run_config["q"]
-        return CustomQFedAvg(
-            client_learning_rate=lr,
-            q=q,
-            fraction_evaluate=fraction_evaluate,
-            fraction_train=fraction_train,
-            train_loss_key = "train_loss"
-            )
-    else:
-        return CustomFedAvg(
-            fraction_evaluate=fraction_evaluate,
-            fraction_train=fraction_train
-            )
 
 def get_disparity(individual_eval_metrics, agg_eval_acc, agg_eval_loss):
     """Calculate loss and accuracy disparity of global model across client local data."""

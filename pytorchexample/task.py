@@ -4,7 +4,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from datasets import load_dataset
-from flwr.serverapp.strategy import Result
 from flwr_datasets import FederatedDataset
 from flwr_datasets.partitioner import IidPartitioner, DirichletPartitioner
 from torch.utils.data import DataLoader
@@ -15,13 +14,6 @@ from torchvision.transforms import (
 )
 from opacus.utils.batch_memory_manager import BatchMemoryManager
 from opacus import PrivacyEngine
-from flwr.app import UserConfig
-from datetime import datetime
-from pathlib import Path
-import json
-import pandas as pd
-import matplotlib.pyplot as plt
-import numpy as np
 
 
 FM_NORMALIZATION = ((0.1307,), (0.3081,))
@@ -93,39 +85,8 @@ def load_centralized_dataset():
     dataset = test_dataset.with_format("torch").with_transform(apply_transforms)
     return DataLoader(dataset, batch_size=64)
 
-"""
-def train(net, trainloader, epochs, lr, device, optimizer, max_physical_batch_size,epsilon,delta,privacy_engine):
-    Train the model on the training set.
-    net.to(device)  # move model to GPU if available
-    criterion = torch.nn.CrossEntropyLoss().to(device)
-    #optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9)
-    running_loss = 0.0
-    i = 0
-    net.train()
-    with BatchMemoryManager(
-        data_loader=trainloader, 
-        max_physical_batch_size=max_physical_batch_size, 
-        optimizer=optimizer
-    ) as memory_safe_data_loader:
-        for batch in memory_safe_data_loader:
-            optimizer.zero_grad()
-            images = batch['img'].to(device)
-            labels = batch['label'].to(device)
-            loss = criterion(net(images), labels)
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item()
-            if (i+1) % 200 == 0:
-                epsilon = privacy_engine.get_epsilon(delta)
-            i += 1
-        avg_trainloss = running_loss / (epochs * len(trainloader))
-    return avg_trainloss
-"""
 
-
-
-
-def train(net, trainloader, epochs, lr, device, max_physical_batch_size, context, lmbda = None, global_params = None):
+def train(net, trainloader, epochs, lr, device, train_config, global_params = None):
     """Train the model on the training set."""
     net.to(device)  # move model to GPU if available
     criterion = torch.nn.CrossEntropyLoss().to(device)
@@ -141,21 +102,27 @@ def train(net, trainloader, epochs, lr, device, max_physical_batch_size, context
         return
 
     # DP Enabled training
-    if context.run_config["dp-enabled"]:
+    if train_config["dp"] and train_config["dp_mode"] == "local":
         privacy_engine = PrivacyEngine()
         net, optimizer, trainloader = privacy_engine.make_private_with_epsilon(
             module=net,
             optimizer=optimizer,
             data_loader=trainloader,
             epochs = epochs,
-            target_epsilon=context.run_config["epsilon"],
-            target_delta=context.run_config["delta"],
-            max_grad_norm=context.run_config["max-grad-norm"]
+            clipping=train_config["dp_clipping"],
+            target_epsilon=train_config["dp_epsilon"],
+            target_delta=train_config["dp_delta"],
+            max_grad_norm=train_config["dp_max_grad_norm"],
+            target_unclipped_quantile = 0.5,
+            clipbound_learning_rate = 0.2,
+            max_clipbound = 100.0,
+            min_clipbound = train_config["dp_min_bound"],
+            unclipped_num_std = 2.0
         )
         net.train()
         with BatchMemoryManager(
             data_loader=trainloader, 
-            max_physical_batch_size=max_physical_batch_size, 
+            max_physical_batch_size=train_config["dp_max_physical_batch_size"], 
             optimizer=optimizer
         ) as memory_safe_data_loader:
             for _ in range(epochs):
@@ -167,8 +134,8 @@ def train(net, trainloader, epochs, lr, device, max_physical_batch_size, context
                     loss.backward()
                     optimizer.step()
                     running_loss += loss.item()
-                    if context.run_config["dp-enabled"] and (i+1) % 200 == 0:
-                        epsilon = privacy_engine.get_epsilon(context.run_config["delta"])
+                    if train_config["dp"] and (i+1) % 200 == 0:
+                        epsilon = privacy_engine.get_epsilon(train_config["dp_delta"])
                     i += 1
                 avg_trainloss = running_loss / (epochs * len(trainloader))
     # DP Disabled Training
@@ -183,8 +150,8 @@ def train(net, trainloader, epochs, lr, device, max_physical_batch_size, context
                 loss.backward()
 
                 # Ditto
-                if lmbda is not None:
-                    ditto_train(lr, lmbda, global_params)
+                if global_params is not None:
+                    ditto_train(lr, train_config["ditto_lambda"], global_params)
 
 
                 optimizer.step()

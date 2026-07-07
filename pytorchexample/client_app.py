@@ -2,13 +2,12 @@
 
 import torch
 import random
-from flwr.app import ArrayRecord, Context, Message, MetricRecord, RecordDict, ConfigRecord
+from flwr.app import ArrayRecord, Context, Message, MetricRecord, RecordDict
 from flwr.clientapp import ClientApp
 
 from pytorchexample.task import Net, load_data
 from pytorchexample.task import test as test_fn
 from pytorchexample.task import train as train_fn
-from opacus import PrivacyEngine
 
 # Flower ClientApp
 app = ClientApp()
@@ -28,7 +27,7 @@ def train(msg: Message, context: Context):
         # Store this rounds global params to bound personalised model.
         global_params = model.parameters()
         ditto_model = Net()
-        # Check for personalised parameters. If none found, intialise with global model parameters.
+        # Check for personalised parameters. If none found, save intitial params.
         if "ditto_params" not in context.state:
             context.state["ditto_params"] = ArrayRecord(ditto_model.state_dict())
 
@@ -40,7 +39,6 @@ def train(msg: Message, context: Context):
     alpha = context.run_config["alpha"]
     trainloader, _ = load_data(partition_id, num_partitions, batch_size, alpha, min_partition_size)
 
-    max_physical_batch_size = context.run_config["max-physical-batch-size"]
     lr = context.run_config['learning-rate']
     epochs = context.run_config["local-epochs"]
     train_loss = train_fn(
@@ -49,8 +47,7 @@ def train(msg: Message, context: Context):
         epochs,
         lr,
         device,
-        max_physical_batch_size,
-        context
+        msg.content["config"]
     )
 
     # Construct and return reply Message
@@ -72,9 +69,7 @@ def train(msg: Message, context: Context):
             msg.content["config"]["ditto_local_epochs"],
             msg.content["config"]["ditto_lr"],
             device,
-            max_physical_batch_size,
-            context,
-            msg.content["config"]["ditto_lambda"],
+            msg.content["config"],
             global_params
         )
         
