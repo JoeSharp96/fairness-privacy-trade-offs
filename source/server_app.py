@@ -1,4 +1,4 @@
-"""pytorchexample: A Flower / PyTorch app."""
+"""Flower Server"""
 
 import torch
 from flwr.app import ArrayRecord, ConfigRecord, Context, MetricRecord
@@ -16,7 +16,6 @@ def main(grid: Grid, context: Context) -> None:
     """Main entry point for the ServerApp."""
     # Read run config
     num_rounds: int = context.run_config["num-server-rounds"]
-
     # Load global model and intialise parameters
     Net = get_model(context.run_config["dataset"])
     global_model = Net()

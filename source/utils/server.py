@@ -6,6 +6,7 @@ from source.strategies.customdpadaptiveclip import CustomDifferentialPrivacyAdap
 from opacus.accountants.utils import get_noise_multiplier
 import source.models.mnist as mnist
 import source.models.fashion_mnist as fashion_mnist
+import source.models.femnist as femnist
 
 def get_fl_strategy(run_config):
     """Returns FL strategy and training config"""
@@ -140,3 +141,5 @@ def get_functions(dataset):
         return mnist.test, mnist.load_centralized_dataset
     if str.lower(dataset) == 'fashion_mnist':
         return fashion_mnist.test, fashion_mnist.load_centralized_dataset
+    if str.lower(dataset) == 'femnist':
+        return femnist.test, femnist.load_centralized_dataset

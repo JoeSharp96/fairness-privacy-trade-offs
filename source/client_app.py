@@ -1,4 +1,4 @@
-"""pytorchexample: A Flower / PyTorch app."""
+"""Flower Client"""
 
 import torch
 from flwr.app import ArrayRecord, Context, Message, MetricRecord, RecordDict
@@ -14,6 +14,8 @@ app = ClientApp()
 def train(msg: Message, context: Context):
     """Train the model on local data."""
     # Load the model and initialize it with the received weights
+    # Loads dataset model. Need to find a better way of doing this as it's pretty inefficient. Gets called every round for every client.
+    # Issue is, each client app is a unqiue instance, each round generates a new set
     Net = get_model(msg.content["config"]["dataset"])
     train_fn, load_data = get_functions(msg.content["config"]["dataset"])
 
