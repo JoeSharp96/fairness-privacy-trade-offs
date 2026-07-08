@@ -3,9 +3,10 @@
 import torch
 from flwr.app import ArrayRecord, ConfigRecord, Context, MetricRecord
 from flwr.serverapp import Grid, ServerApp
-from pytorchexample.task import Net, load_centralized_dataset, test
+#from pytorchexample.models.mnist import Net, load_centralized_dataset, test
 from utils.reporting import output_dir, save_metrics, save_graphs
-from utils.server import get_fl_strategy
+from utils.server import get_fl_strategy, get_functions
+from utils.models import get_model
 
 # Create ServerApp
 app = ServerApp()
@@ -18,6 +19,7 @@ def main(grid: Grid, context: Context) -> None:
     num_rounds: int = context.run_config["num-server-rounds"]
 
     # Load global model and intialise parameters
+    Net = get_model(context.run_config["dataset"])
     global_model = Net()
     arrays = ArrayRecord(global_model.state_dict())
 
@@ -29,9 +31,9 @@ def main(grid: Grid, context: Context) -> None:
         grid=grid,
         initial_arrays=arrays,
         train_config=ConfigRecord(train_config),
-        evaluate_config=ConfigRecord({"ditto": context.run_config["ditto"]}),
+        evaluate_config=ConfigRecord({"ditto": context.run_config["ditto"], "dataset": context.run_config["dataset"]}),
         num_rounds=num_rounds,
-        evaluate_fn=global_evaluate,
+        evaluate_fn=global_evaluate
     )
 
     # Record fairness metrics
@@ -53,19 +55,21 @@ def main(grid: Grid, context: Context) -> None:
     
     
 
-def global_evaluate(server_round: int, arrays: ArrayRecord) -> MetricRecord:
+def global_evaluate(server_round: int, arrays: ArrayRecord, dataset: str) -> MetricRecord:
     """Evaluate model on central data."""
 
     # Load the model and initialize it with the received weights
+    Net = get_model(dataset)
+    test_fn, load_centralized_dataset_fn = get_functions(dataset)
     model = Net()
     model.load_state_dict(arrays.to_torch_state_dict())
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model.to(device)
     # Load entire test set
-    test_dataloader = load_centralized_dataset()
+    test_dataloader = load_centralized_dataset_fn()
 
     # Evaluate the global model on the test set
-    test_loss, test_acc = test(model, test_dataloader, device)
+    test_loss, test_acc = test_fn(model, test_dataloader, device)
 
     # Return the evaluation metrics
     return MetricRecord({"accuracy": test_acc, "loss": test_loss})

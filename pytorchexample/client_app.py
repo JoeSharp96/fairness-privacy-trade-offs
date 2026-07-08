@@ -4,10 +4,11 @@ import torch
 import random
 from flwr.app import ArrayRecord, Context, Message, MetricRecord, RecordDict
 from flwr.clientapp import ClientApp
-
-from pytorchexample.task import Net, load_data
-from pytorchexample.task import test as test_fn
-from pytorchexample.task import train as train_fn
+from utils.client import get_functions
+from utils.models import get_model
+#from pytorchexample.models.mnist import load_data
+#from pytorchexample.models.mnist import test as test_fn
+#from pytorchexample.models.mnist import train as train_fn
 
 # Flower ClientApp
 app = ClientApp()
@@ -17,6 +18,8 @@ app = ClientApp()
 def train(msg: Message, context: Context):
     """Train the model on local data."""
     # Load the model and initialize it with the received weights
+    Net = get_model(msg.content["config"]["dataset"])
+    train_fn, load_data = get_functions(msg.content["config"]["dataset"])
 
     model = Net()
     model.load_state_dict(msg.content["arrays"].to_torch_state_dict())
@@ -91,6 +94,8 @@ def evaluate(msg: Message, context: Context):
     """Evaluate the model on local data."""
 
     # Load the model and initialize it with the received weights
+    Net = get_model(msg.content["config"]["dataset"])
+    test_fn, load_data = get_functions(msg.content["config"]["dataset"], train=False)
     model = Net()
     model.load_state_dict(msg.content["arrays"].to_torch_state_dict())
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

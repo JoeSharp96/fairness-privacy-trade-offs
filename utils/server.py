@@ -4,13 +4,15 @@ from strategies.boundedclipping import DifferentialPrivacyServerSideBoundedClipp
 from strategies.customdpfixedclip import CustomDifferentialPrivacyFixedClipping
 from strategies.customdpadaptiveclip import CustomDifferentialPrivacyAdaptiveClipping
 from opacus.accountants.utils import get_noise_multiplier
+import pytorchexample.models.mnist as mnist
+import pytorchexample.models.fashion_mnist as fashion_mnist
 
 def get_fl_strategy(run_config):
     """Returns FL strategy and training config"""
     fl_strategy = None
 
     # Initialise ditto and dp flags to control training flow.
-    train_config = {"ditto": run_config["ditto"], "dp": run_config["dp-enabled"], "dp_mode": run_config["dp-mode"], "dp_clipping": run_config["clipping-mode"]}
+    train_config = {"ditto": run_config["ditto"], "dp": run_config["dp-enabled"], "dp_mode": run_config["dp-mode"], "dp_clipping": run_config["clipping-mode"], "dataset": run_config["dataset"]}
     
     # Add ditto parameters to train_config if ditto is enabled
     if train_config["ditto"]:
@@ -133,4 +135,8 @@ def add_local_dp_config(train_config, attributes):
             train_config[key] = value
         return train_config
 
-    
+def get_functions(dataset):
+    if str.lower(dataset) == 'mnist':
+        return mnist.test, mnist.load_centralized_dataset
+    if str.lower(dataset) == 'fashion_mnist':
+        return fashion_mnist.test, fashion_mnist.load_centralized_dataset

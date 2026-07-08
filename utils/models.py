@@ -1,18 +1,10 @@
-from flwr_datasets.partitioner import IidPartitioner, DirichletPartitioner
+import torch.nn as nn
+import pytorchexample.models.mnist as mnist
+import pytorchexample.models.fashion_mnist as fashion_mnist
 
-def get_partitioner(distribution, num_partitions, alpha):
-    """Returns either a IidPartitioner for IID distribution or DirichletPartitioner for Non-IID distribution"""
-
-    if str.lower(distribution) == 'iid':
-        return IidPartitioner(num_partitions=num_partitions)
-    
-    elif str.lower(distribution) == 'non-iid':
-        return DirichletPartitioner(
-            num_partitions=num_partitions,
-            partition_by='label',
-            alpha=alpha,
-            seed=42
-        )
-    
-    else:
-        return ValueError(f"Invalid distribution: {distribution}. Please select 'iid' or 'non-iid'.")
+def get_model(dataset) -> nn.Module:
+    """Returns model for specified dataset."""
+    if str.lower(dataset) == 'mnist':
+        return mnist.Net
+    elif str.lower(dataset) == 'fashion_mnist':
+        return fashion_mnist.Net

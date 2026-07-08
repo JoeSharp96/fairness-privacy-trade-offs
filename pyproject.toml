@@ -36,7 +36,8 @@ fraction-train = 0.2
 save-model = true
 strategy = "fedavg"
 
-# Data Distribution settings
+# Data settings
+dataset = "fashion_mnist"
 distribution = 'non-iid'
 batch-size = 64
 min-partition-size = 32
