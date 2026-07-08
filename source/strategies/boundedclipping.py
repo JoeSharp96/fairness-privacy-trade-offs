@@ -1,3 +1,5 @@
+from flwr.serverapp.strategy import DifferentialPrivacyServerSideAdaptiveClipping, Result
+import math
 import io
 import time
 from logging import INFO
@@ -6,11 +8,22 @@ from typing import Callable
 from flwr.app import ArrayRecord, ConfigRecord, MetricRecord
 from flwr.common import log
 from flwr.serverapp import Grid
-from flwr.serverapp.strategy import DifferentialPrivacyServerSideAdaptiveClipping, Result
-from flwr.serverapp.strategy.strategy_utils import log_strategy_start_info
-from utils.strategy import get_individual_metrics
 
-class CustomDifferentialPrivacyAdaptiveClipping(DifferentialPrivacyServerSideAdaptiveClipping):
+from flwr.serverapp.strategy.strategy_utils import log_strategy_start_info
+from source.utils.strategy import get_individual_metrics
+
+class DifferentialPrivacyServerSideBoundedClipping(DifferentialPrivacyServerSideAdaptiveClipping):
+    """Server-side differential privacy strategy with adaptive lower bounded clipping."""
+    def __init__(self, strategy, noise_multiplier, num_sampled_clients, min_bound):
+        super().__init__(strategy=strategy, noise_multiplier=noise_multiplier, num_sampled_clients=num_sampled_clients)
+        self.min_bound = min_bound
+
+    def _geometric_update(self, clipped_fraction:float):
+        self.clipping_norm *= math.exp(
+            -self.clip_norm_lr * (clipped_fraction - self.target_clipped_quantile)
+        )
+        if self.clipping_norm < self.min_bound:
+            self.clipping_norm = self.min_bound
     
     def start(
         self,
@@ -71,7 +84,7 @@ class CustomDifferentialPrivacyAdaptiveClipping(DifferentialPrivacyServerSideAda
         t_start = time.time()
         # Evaluate starting global parameters
         if evaluate_fn:
-            res = evaluate_fn(0, initial_arrays,evaluate_config["dataset"])
+            res = evaluate_fn(0, initial_arrays, evaluate_config["dataset"])
             log(INFO, "Initial global evaluation results: %s", res)
             if res is not None:
                 result.evaluate_metrics_serverapp[0] = res

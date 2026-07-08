@@ -8,7 +8,7 @@ from flwr.common import log
 from flwr.serverapp import Grid
 from flwr.serverapp.strategy import DifferentialPrivacyServerSideFixedClipping, Result
 from flwr.serverapp.strategy.strategy_utils import log_strategy_start_info
-from utils.strategy import get_individual_metrics
+from source.utils.strategy import get_individual_metrics
 
 class CustomDifferentialPrivacyFixedClipping(DifferentialPrivacyServerSideFixedClipping):
     

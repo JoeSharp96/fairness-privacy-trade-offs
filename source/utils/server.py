@@ -1,11 +1,11 @@
-from strategies.custom import CustomFedAvg
-from strategies.customqfedavg import CustomQFedAvg
-from strategies.boundedclipping import DifferentialPrivacyServerSideBoundedClipping
-from strategies.customdpfixedclip import CustomDifferentialPrivacyFixedClipping
-from strategies.customdpadaptiveclip import CustomDifferentialPrivacyAdaptiveClipping
+from source.strategies.custom import CustomFedAvg
+from source.strategies.customqfedavg import CustomQFedAvg
+from source.strategies.boundedclipping import DifferentialPrivacyServerSideBoundedClipping
+from source.strategies.customdpfixedclip import CustomDifferentialPrivacyFixedClipping
+from source.strategies.customdpadaptiveclip import CustomDifferentialPrivacyAdaptiveClipping
 from opacus.accountants.utils import get_noise_multiplier
-import pytorchexample.models.mnist as mnist
-import pytorchexample.models.fashion_mnist as fashion_mnist
+import source.models.mnist as mnist
+import source.models.fashion_mnist as fashion_mnist
 
 def get_fl_strategy(run_config):
     """Returns FL strategy and training config"""

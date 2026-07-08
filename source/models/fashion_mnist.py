@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from datasets import load_dataset
 from flwr_datasets import FederatedDataset
-from utils.datasets import get_partitioner
+from source.utils.datasets import get_partitioner
 from torch.utils.data import DataLoader
 from torchvision.transforms import (
     Compose,
@@ -15,29 +15,39 @@ from torchvision.transforms import (
 from opacus.utils.batch_memory_manager import BatchMemoryManager
 from opacus import PrivacyEngine
 
+
+FM_NORMALIZATION = ((0.1307,), (0.3081,))
+TRANSFORMS = Compose([ToTensor(), Normalize(*FM_NORMALIZATION)])
+
+# I probably will need a unique model to work with every dataset I'm going to use :)
 class Net(nn.Module):
+    """Model (simple CNN adapted from 'PyTorch: A 60 Minute Blitz')"""
 
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(in_channels=1, out_channels=8, kernel_size=(3,3), padding=1)
-        self.conv2 = nn.Conv2d(in_channels=8,out_channels=16,kernel_size=(3,3), padding=1)
-        self.pool = nn.MaxPool2d(kernel_size=(2,2), stride=2)
-        self.fc1 = nn.Linear(16 * 7 * 7, 10)
-    
+        self.conv1 = nn.Conv2d(1, 16, 5)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(16, 32, 5)
+        self.fc1 = nn.Linear(32 * 4 * 4, 128)
+        self.fc2 = nn.Linear(128, 10)
+
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
-        x = x.reshape(x.shape[0], -1)
-        x = self.fc1(x)
-        return x
+        x = x.view(-1, 32 * 4 * 4)
+        x = F.relu(self.fc1(x))
+        return self.fc2(x)
+
 
 fds = None  # Cache FederatedDataset
 
-pytorch_transforms = Compose([ToTensor(), Normalize((0.5), (0.5))])
+pytorch_transforms = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+
+
 
 def apply_transforms(batch):
     """Apply transforms to the partition from FederatedDataset."""
-    batch["image"] = [pytorch_transforms(img) for img in batch["image"]]
+    batch["image"] = [TRANSFORMS(img) for img in batch["image"]]
     return batch
 
 # Add the partition_by variable. To run this on two datasets it will have to be variable.
@@ -52,7 +62,7 @@ def load_data(partition_id: int, num_partitions: int, batch_size: int, alpha: fl
             alpha
         )
         fds = FederatedDataset(
-            dataset="ylecun/mnist",
+            dataset="zalando-datasets/fashion_mnist",
             partitioners={"train": partitioner},
         )
     partition = fds.load_partition(partition_id)
@@ -70,7 +80,7 @@ def load_data(partition_id: int, num_partitions: int, batch_size: int, alpha: fl
 def load_centralized_dataset():
     """Load test set and return dataloader."""
     # Load entire test set
-    test_dataset = load_dataset("ylecun/mnist", split="test")
+    test_dataset = load_dataset("zalando-datasets/fashion_mnist", split="test")
     dataset = test_dataset.with_format("torch").with_transform(apply_transforms)
     return DataLoader(dataset, batch_size=64)
 
@@ -141,6 +151,7 @@ def train(net, trainloader, epochs, lr, device, train_config, global_params = No
                 # Ditto
                 if global_params is not None:
                     ditto_train(net, lr, train_config["ditto_lambda"], global_params)
+
 
                 optimizer.step()
                 running_loss += loss.item()

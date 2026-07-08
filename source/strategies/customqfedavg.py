@@ -8,12 +8,12 @@ import torch
 from flwr.app import ArrayRecord, ConfigRecord, Message, MetricRecord, RecordDict, MessageType
 from flwr.common import log, logger
 from flwr.serverapp import Grid
-from flwr.serverapp.strategy import FedAvg, Result
+from flwr.serverapp.strategy import FedAvg, Result, QFedAvg
 from flwr.serverapp.strategy.strategy_utils import log_strategy_start_info, sample_nodes
-from utils.strategy import get_individual_metrics
+from source.utils.strategy import get_individual_metrics
 
 
-class CustomFedAvg(FedAvg):
+class CustomQFedAvg(QFedAvg):
     """Custom FedAvg that allows for fairness metrics to be calculated and logged during training."""
 
     def start(
@@ -75,7 +75,7 @@ class CustomFedAvg(FedAvg):
         t_start = time.time()
         # Evaluate starting global parameters
         if evaluate_fn:
-            res = evaluate_fn(0, initial_arrays, evaluate_config["dataset"])
+            res = evaluate_fn(0, initial_arrays,evaluate_config["dataset"])
             log(INFO, "Initial global evaluation results: %s", res)
             if res is not None:
                 result.evaluate_metrics_serverapp[0] = res
@@ -150,7 +150,7 @@ class CustomFedAvg(FedAvg):
             # Centralized evaluation
             if evaluate_fn:
                 log(INFO, "Global evaluation")
-                res = evaluate_fn(current_round, arrays, evaluate_config["dataset"])
+                res = evaluate_fn(current_round, arrays,evaluate_config["dataset"])
                 log(INFO, "\t└──> MetricRecord: %s", res)
                 if res is not None:
                     result.evaluate_metrics_serverapp[current_round] = res

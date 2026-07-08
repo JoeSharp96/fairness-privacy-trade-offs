@@ -1,14 +1,10 @@
 """pytorchexample: A Flower / PyTorch app."""
 
 import torch
-import random
 from flwr.app import ArrayRecord, Context, Message, MetricRecord, RecordDict
 from flwr.clientapp import ClientApp
-from utils.client import get_functions
-from utils.models import get_model
-#from pytorchexample.models.mnist import load_data
-#from pytorchexample.models.mnist import test as test_fn
-#from pytorchexample.models.mnist import train as train_fn
+from source.utils.client import get_functions
+from source.utils.models import get_model
 
 # Flower ClientApp
 app = ClientApp()

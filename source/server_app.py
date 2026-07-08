@@ -3,10 +3,9 @@
 import torch
 from flwr.app import ArrayRecord, ConfigRecord, Context, MetricRecord
 from flwr.serverapp import Grid, ServerApp
-#from pytorchexample.models.mnist import Net, load_centralized_dataset, test
-from utils.reporting import output_dir, save_metrics, save_graphs
-from utils.server import get_fl_strategy, get_functions
-from utils.models import get_model
+from source.utils.reporting import output_dir, save_metrics, save_graphs
+from source.utils.server import get_fl_strategy, get_functions
+from source.utils.models import get_model
 
 # Create ServerApp
 app = ServerApp()

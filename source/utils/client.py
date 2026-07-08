@@ -1,5 +1,5 @@
-import pytorchexample.models.mnist as mnist
-import pytorchexample.models.fashion_mnist as fashion_mnist
+import source.models.mnist as mnist
+import source.models.fashion_mnist as fashion_mnist
 
 def get_functions(dataset, train=True):
     """Returns train, test and dataloading funtions depending on the selected dataset"""

@@ -1,30 +1,21 @@
-from flwr.serverapp.strategy import DifferentialPrivacyServerSideAdaptiveClipping, Result
-import math
 import io
 import time
 from logging import INFO
-from typing import Callable
+from pathlib import Path
+from typing import Callable, Iterable, Optional
 
-from flwr.app import ArrayRecord, ConfigRecord, MetricRecord
-from flwr.common import log
+import torch
+from flwr.app import ArrayRecord, ConfigRecord, Message, MetricRecord, RecordDict, MessageType
+from flwr.common import log, logger
 from flwr.serverapp import Grid
+from flwr.serverapp.strategy import FedAvg, Result
+from flwr.serverapp.strategy.strategy_utils import log_strategy_start_info, sample_nodes
+from source.utils.strategy import get_individual_metrics
 
-from flwr.serverapp.strategy.strategy_utils import log_strategy_start_info
-from utils.strategy import get_individual_metrics
 
-class DifferentialPrivacyServerSideBoundedClipping(DifferentialPrivacyServerSideAdaptiveClipping):
-    """Server-side differential privacy strategy with adaptive lower bounded clipping."""
-    def __init__(self, strategy, noise_multiplier, num_sampled_clients, min_bound):
-        super().__init__(strategy=strategy, noise_multiplier=noise_multiplier, num_sampled_clients=num_sampled_clients)
-        self.min_bound = min_bound
+class CustomFedAvg(FedAvg):
+    """Custom FedAvg that allows for fairness metrics to be calculated and logged during training."""
 
-    def _geometric_update(self, clipped_fraction:float):
-        self.clipping_norm *= math.exp(
-            -self.clip_norm_lr * (clipped_fraction - self.target_clipped_quantile)
-        )
-        if self.clipping_norm < self.min_bound:
-            self.clipping_norm = self.min_bound
-    
     def start(
         self,
         grid: Grid,
@@ -159,7 +150,7 @@ class DifferentialPrivacyServerSideBoundedClipping(DifferentialPrivacyServerSide
             # Centralized evaluation
             if evaluate_fn:
                 log(INFO, "Global evaluation")
-                res = evaluate_fn(current_round, arrays,evaluate_config["dataset"])
+                res = evaluate_fn(current_round, arrays, evaluate_config["dataset"])
                 log(INFO, "\t└──> MetricRecord: %s", res)
                 if res is not None:
                     result.evaluate_metrics_serverapp[current_round] = res

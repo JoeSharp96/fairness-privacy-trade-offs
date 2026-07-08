@@ -47,7 +47,7 @@ alpha = 0.5
 q = 0.005
 
 # Ditto Parameters
-ditto = true
+ditto = false
 ditto-lr = 0.001
 ditto-local-epochs = 1
 ditto-lambda = 0.01
@@ -57,11 +57,11 @@ local-epochs = 1
 learning-rate = 0.005
 
 # DP Settings
-dp-enabled = false
-dp-mode = "local"
-epsilon = 8.0
+dp-enabled = true
+dp-mode = "server"
+epsilon = 100.0
 delta = 1e-5
-max-grad-norm = 1.2
+max-grad-norm = 1.0
 max-physical-batch-size = 32
 clipping-mode = "flat"
 clipping-lower-bound = 0.1
