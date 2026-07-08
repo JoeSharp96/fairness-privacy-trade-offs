@@ -75,7 +75,7 @@ class CustomQFedAvg(QFedAvg):
         t_start = time.time()
         # Evaluate starting global parameters
         if evaluate_fn:
-            res = evaluate_fn(0, initial_arrays)
+            res = evaluate_fn(0, initial_arrays,evaluate_config["dataset"])
             log(INFO, "Initial global evaluation results: %s", res)
             if res is not None:
                 result.evaluate_metrics_serverapp[0] = res
@@ -150,7 +150,7 @@ class CustomQFedAvg(QFedAvg):
             # Centralized evaluation
             if evaluate_fn:
                 log(INFO, "Global evaluation")
-                res = evaluate_fn(current_round, arrays)
+                res = evaluate_fn(current_round, arrays,evaluate_config["dataset"])
                 log(INFO, "\t└──> MetricRecord: %s", res)
                 if res is not None:
                     result.evaluate_metrics_serverapp[current_round] = res
