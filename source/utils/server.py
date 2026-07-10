@@ -7,6 +7,7 @@ from opacus.accountants.utils import get_noise_multiplier
 import source.models.mnist as mnist
 import source.models.fashion_mnist as fashion_mnist
 import source.models.femnist as femnist
+import source.models.adult as adult
 
 def get_fl_strategy(run_config):
     """Returns FL strategy and training config"""
@@ -143,3 +144,5 @@ def get_functions(dataset):
         return fashion_mnist.test, fashion_mnist.load_centralized_dataset
     if str.lower(dataset) == 'femnist':
         return femnist.test, femnist.load_centralized_dataset
+    if str.lower(dataset) == 'adult':
+        return adult.test, adult.load_centralized_dataset

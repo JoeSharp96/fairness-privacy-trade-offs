@@ -1,6 +1,7 @@
 import source.models.mnist as mnist
 import source.models.fashion_mnist as fashion_mnist
 import source.models.femnist as femnist
+import source.models.adult as adult
 
 def get_functions(dataset, train=True):
     """Returns train, test and dataloading funtions depending on the selected dataset"""
@@ -21,3 +22,9 @@ def get_functions(dataset, train=True):
             return femnist.train, femnist.load_data
         else:
             return femnist.test, femnist.load_data
+
+    elif str.lower(dataset) == 'adult':
+        if train:
+            return adult.train, adult.load_data
+        else:
+            return adult.test, adult.load_data

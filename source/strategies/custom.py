@@ -15,7 +15,6 @@ from source.utils.strategy import get_individual_metrics
 
 class CustomFedAvg(FedAvg):
     """Custom FedAvg that allows for fairness metrics to be calculated and logged during training."""
-
     def start(
         self,
         grid: Grid,
@@ -75,7 +74,7 @@ class CustomFedAvg(FedAvg):
         t_start = time.time()
         # Evaluate starting global parameters
         if evaluate_fn:
-            res = evaluate_fn(0, initial_arrays, evaluate_config["dataset"])
+            res = evaluate_fn(0, initial_arrays, evaluate_config["dataset"], evaluate_config["distribution"])
             log(INFO, "Initial global evaluation results: %s", res)
             if res is not None:
                 result.evaluate_metrics_serverapp[0] = res

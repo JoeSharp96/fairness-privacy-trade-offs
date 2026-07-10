@@ -2,6 +2,10 @@ import torch.nn as nn
 import source.models.mnist as mnist
 import source.models.fashion_mnist as fashion_mnist
 import source.models.femnist as femnist
+import source.models.adult as adult
+
+# Create a base class for Client
+# Add all basic methods
 
 def get_model(dataset) -> nn.Module:
     """Returns model for specified dataset."""
@@ -11,3 +15,5 @@ def get_model(dataset) -> nn.Module:
         return fashion_mnist.Net
     elif str.lower(dataset) == 'femnist':
         return femnist.Net
+    elif str.lower(dataset) == 'adult':
+        return adult.Net

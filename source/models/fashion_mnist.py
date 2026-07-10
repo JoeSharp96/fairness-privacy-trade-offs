@@ -59,7 +59,8 @@ def load_data(partition_id: int, num_partitions: int, batch_size: int, alpha: fl
         partitioner = get_partitioner(
             distribution,
             num_partitions,
-            alpha
+            alpha,
+            "label"
         )
         fds = FederatedDataset(
             dataset="zalando-datasets/fashion_mnist",
@@ -77,7 +78,7 @@ def load_data(partition_id: int, num_partitions: int, batch_size: int, alpha: fl
     return trainloader, testloader
 
 
-def load_centralized_dataset():
+def load_centralized_dataset(distribution=None):
     """Load test set and return dataloader."""
     # Load entire test set
     test_dataset = load_dataset("zalando-datasets/fashion_mnist", split="test")

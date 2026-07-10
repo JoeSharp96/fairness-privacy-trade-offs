@@ -6,6 +6,7 @@ from flwr.clientapp import ClientApp
 from source.utils.client import get_functions
 from source.utils.models import get_model
 
+
 # Flower ClientApp
 app = ClientApp()
 

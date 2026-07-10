@@ -10,7 +10,6 @@ from source.utils.models import get_model
 # Create ServerApp
 app = ServerApp()
 
-
 @app.main()
 def main(grid: Grid, context: Context) -> None:
     """Main entry point for the ServerApp."""
@@ -29,7 +28,7 @@ def main(grid: Grid, context: Context) -> None:
         grid=grid,
         initial_arrays=arrays,
         train_config=ConfigRecord(train_config),
-        evaluate_config=ConfigRecord({"ditto": context.run_config["ditto"], "dataset": context.run_config["dataset"]}),
+        evaluate_config=ConfigRecord({"ditto": context.run_config["ditto"], "dataset": context.run_config["dataset"], "distribution": context.run_config["distribution"]}),
         num_rounds=num_rounds,
         evaluate_fn=global_evaluate
     )
@@ -53,7 +52,7 @@ def main(grid: Grid, context: Context) -> None:
     
     
 
-def global_evaluate(server_round: int, arrays: ArrayRecord, dataset: str) -> MetricRecord:
+def global_evaluate(server_round: int, arrays: ArrayRecord, dataset: str, distribution = None) -> MetricRecord:
     """Evaluate model on central data."""
 
     # Load the model and initialize it with the received weights
@@ -64,7 +63,7 @@ def global_evaluate(server_round: int, arrays: ArrayRecord, dataset: str) -> Met
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model.to(device)
     # Load entire test set
-    test_dataloader = load_centralized_dataset_fn()
+    test_dataloader = load_centralized_dataset_fn(distribution)
 
     # Evaluate the global model on the test set
     test_loss, test_acc = test_fn(model, test_dataloader, device)
