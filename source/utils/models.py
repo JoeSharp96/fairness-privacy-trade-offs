@@ -10,10 +10,10 @@ import source.models.adult as adult
 def get_model(dataset) -> nn.Module:
     """Returns model for specified dataset."""
     if str.lower(dataset) == 'mnist':
-        return mnist.Net
+        return mnist.Mnist
     elif str.lower(dataset) == 'fashion_mnist':
-        return fashion_mnist.Net
+        return fashion_mnist.FashionMnist
     elif str.lower(dataset) == 'femnist':
-        return femnist.Net
+        return femnist.Femnist
     elif str.lower(dataset) == 'adult':
-        return adult.Net
+        return adult.Adult

@@ -16,6 +16,7 @@ class CustomDifferentialPrivacyFixedClipping(DifferentialPrivacyServerSideFixedC
         self,
         grid: Grid,
         initial_arrays: ArrayRecord,
+        server,
         num_rounds: int = 3,
         timeout: float = 3600,
         train_config: ConfigRecord | None = None,
@@ -71,7 +72,7 @@ class CustomDifferentialPrivacyFixedClipping(DifferentialPrivacyServerSideFixedC
         t_start = time.time()
         # Evaluate starting global parameters
         if evaluate_fn:
-            res = evaluate_fn(0, initial_arrays,evaluate_config["dataset"], evaluate_config["distribution"])
+            res = evaluate_fn(0, initial_arrays,server)
             log(INFO, "Initial global evaluation results: %s", res)
             if res is not None:
                 result.evaluate_metrics_serverapp[0] = res
@@ -146,7 +147,7 @@ class CustomDifferentialPrivacyFixedClipping(DifferentialPrivacyServerSideFixedC
             # Centralized evaluation
             if evaluate_fn:
                 log(INFO, "Global evaluation")
-                res = evaluate_fn(current_round, arrays,evaluate_config["dataset"])
+                res = evaluate_fn(current_round, arrays,server)
                 log(INFO, "\t└──> MetricRecord: %s", res)
                 if res is not None:
                     result.evaluate_metrics_serverapp[current_round] = res

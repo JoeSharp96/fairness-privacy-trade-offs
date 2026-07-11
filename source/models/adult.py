@@ -8,11 +8,6 @@ from flwr_datasets.partitioner import NaturalIdPartitioner
 from flwr_datasets.preprocessor import Divider
 from source.utils.datasets import get_partitioner
 from torch.utils.data import DataLoader
-from torchvision.transforms import (
-    Compose,
-    Normalize,
-    ToTensor,
-)
 from opacus.utils.batch_memory_manager import BatchMemoryManager
 from opacus import PrivacyEngine
 from sklearn.compose import ColumnTransformer
@@ -20,6 +15,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OrdinalEncoder, StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
+from source.models.net import Net
 # Non-IID settings:
 # FedAvg
 # LR =          0.1
@@ -53,10 +49,10 @@ from torch.utils.data import DataLoader, TensorDataset
 # Epochs =      ?
 
 
-class Net(nn.Module):
+class Adult(Net):
 
-    def __init__(self, input_dim: int = 14):
-        super(Net, self).__init__()
+    def __init__(self, lr, epochs, batch_size, num_partitions, distribution, alpha, partition_by = "Race", ditto = False, input_dim: int = 14):
+        super(Adult, self).__init__(lr, epochs, batch_size, num_partitions, distribution, alpha, partition_by, ditto)
         self.layer1 = nn.Linear(input_dim, 128)
         self.layer2 = nn.Linear(128, 64)
         self.output = nn.Linear(64, 1)
@@ -68,11 +64,100 @@ class Net(nn.Module):
         x = self.relu(self.layer2(x))
         x = self.sigmoid(self.output(x))
         return x
+    
+    def fit(self, trainloader, device, train_config):
+        """Train the model on the training set."""
+        self.to(device)  # move model to GPU if available
+        criterion = torch.nn.BCELoss().to(device)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+        running_loss = 0.0
+        i = 0
+
+        # DP Enabled training
+        if train_config["dp"] and train_config["dp_mode"] == "local":
+            privacy_engine = PrivacyEngine()
+            self, optimizer, trainloader = privacy_engine.make_private_with_epsilon(
+                module=self,
+                optimizer=optimizer,
+                data_loader=trainloader,
+                epochs = self.epochs,
+                clipping=train_config["dp_clipping"],
+                target_epsilon=train_config["dp_epsilon"],
+                target_delta=train_config["dp_delta"],
+                max_grad_norm=train_config["dp_max_grad_norm"],
+                target_unclipped_quantile = 0.5,
+                clipbound_learning_rate = 0.2,
+                max_clipbound = 100.0,
+                min_clipbound = train_config["dp_min_bound"],
+                unclipped_num_std = 2.0
+            )
+            self.train()
+            with BatchMemoryManager(
+                data_loader=trainloader, 
+                max_physical_batch_size=train_config["dp_max_physical_batch_size"], 
+                optimizer=optimizer
+            ) as memory_safe_data_loader:
+                for _ in range(self.epochs):
+                    for X_batch, y_batch in memory_safe_data_loader:
+                        optimizer.zero_grad()
+                        outputs = self(X_batch)
+                        loss = criterion(outputs, y_batch)
+                        loss.backward()
+                        optimizer.step()
+                        running_loss += loss.item()
+                        if train_config["dp"] and (i+1) % 200 == 0:
+                            epsilon = privacy_engine.get_epsilon(train_config["dp_delta"])
+                        i += 1
+                    avg_trainloss = running_loss / (self.epochs * len(trainloader))
+        # DP Disabled Training
+        else:
+            self.train()
+            for _ in range(self.epochs):
+                for X_batch, y_batch in trainloader:
+                    optimizer.zero_grad()
+                    outputs = self(X_batch)
+                    loss = criterion(outputs, y_batch)
+                    loss.backward()
+
+                    # Ditto
+                    if self.global_params is not None:
+                        self.ditto_train()
+
+                    optimizer.step()
+                    running_loss += loss.item()
+                avg_trainloss = running_loss / (self.epochs * len(trainloader))
+        return avg_trainloss
+    
+    def ditto_train(self):
+        """Bound the personalised model updates to not drift too far from the global model."""
+        with torch.no_grad():
+            for p, g_p, in zip(self.parameters(), self.global_params):
+                update = p - self.lr * (p.grad + self.lmbda * torch.dist(p, g_p, p=2))
+                p.copy_(update)
+        return
+    
+    def test(self, testloader, device):
+        """Validate the model on the test set."""
+        self.to(device)
+        criterion = torch.nn.BCELoss()
+        correct, loss = 0, 0.0
+        total = 0
+        with torch.no_grad():
+            for X_batch, y_batch in testloader:
+                outputs = self(X_batch)
+                batch_loss = criterion(outputs, y_batch)
+                loss += batch_loss.item()
+                predicted = (outputs > 0.5).float()
+                total += y_batch.size(0)
+                correct += (predicted == y_batch).sum().item()
+        accuracy = correct / total
+        loss = loss / len(testloader)
+        return loss, accuracy
 
 fds = None  # Cache FederatedDataset
 
 # Add the partition_by variable. To run this on two datasets it will have to be variable.
-def load_data(partition_id: int, num_partitions: int, batch_size: int, alpha: float, min_partition_size: int, distribution: str):
+def load_data(partition_id: int, num_partitions: int, batch_size: int, alpha: float, distribution: str):
     """Load partition Adult data."""
     # Only initialize `FederatedDataset` once
     global fds
@@ -126,7 +211,7 @@ def load_data(partition_id: int, num_partitions: int, batch_size: int, alpha: fl
 
     return train_loader, test_loader
 
-def load_centralized_dataset(distribution=None):
+def load_centralized_dataset(distribution=None, batch_size=16):
     """Load and split the centralized dataset"""
     global fds
     if fds is None:
@@ -163,99 +248,6 @@ def load_centralized_dataset(distribution=None):
     y_test_tensor = torch.tensor(y.values, dtype=torch.float32).view(-1, 1)
 
     test_dataset = TensorDataset(X_test_tensor, y_test_tensor)
-    test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     return test_loader
-    
-
-def ditto_train(net, lr, lmbda, global_params):
-    """Bound the personalised model updates to not drift too far from the global model."""
-    with torch.no_grad():
-        for p, g_p, in zip(net.parameters(), global_params):
-            update = p - lr * (p.grad + lmbda * torch.dist(p, g_p, p=2))
-            p.copy_(update)
-    return
-
-def train(net, trainloader, epochs, lr, device, train_config, global_params = None):
-    """Train the model on the training set."""
-    net.to(device)  # move model to GPU if available
-    criterion = torch.nn.BCELoss().to(device)
-    optimizer = torch.optim.Adam(net.parameters(), lr=lr)
-    running_loss = 0.0
-    i = 0
-
-    # DP Enabled training
-    if train_config["dp"] and train_config["dp_mode"] == "local":
-        privacy_engine = PrivacyEngine()
-        net, optimizer, trainloader = privacy_engine.make_private_with_epsilon(
-            module=net,
-            optimizer=optimizer,
-            data_loader=trainloader,
-            epochs = epochs,
-            clipping=train_config["dp_clipping"],
-            target_epsilon=train_config["dp_epsilon"],
-            target_delta=train_config["dp_delta"],
-            max_grad_norm=train_config["dp_max_grad_norm"],
-            target_unclipped_quantile = 0.5,
-            clipbound_learning_rate = 0.2,
-            max_clipbound = 100.0,
-            min_clipbound = train_config["dp_min_bound"],
-            unclipped_num_std = 2.0
-        )
-        net.train()
-        with BatchMemoryManager(
-            data_loader=trainloader, 
-            max_physical_batch_size=train_config["dp_max_physical_batch_size"], 
-            optimizer=optimizer
-        ) as memory_safe_data_loader:
-            for _ in range(epochs):
-                for X_batch, y_batch in memory_safe_data_loader:
-                    optimizer.zero_grad()
-                    outputs = net(X_batch)
-                    loss = criterion(outputs, y_batch)
-                    loss.backward()
-                    optimizer.step()
-                    running_loss += loss.item()
-                    if train_config["dp"] and (i+1) % 200 == 0:
-                        epsilon = privacy_engine.get_epsilon(train_config["dp_delta"])
-                    i += 1
-                avg_trainloss = running_loss / (epochs * len(trainloader))
-    # DP Disabled Training
-    else:
-        net.train()
-        for _ in range(epochs):
-            for X_batch, y_batch in trainloader:
-                optimizer.zero_grad()
-                outputs = net(X_batch)
-                loss = criterion(outputs, y_batch)
-                loss.backward()
-
-                # Ditto
-                if global_params is not None:
-                    ditto_train(net, lr, train_config["ditto_lambda"], global_params)
-
-                optimizer.step()
-                running_loss += loss.item()
-            avg_trainloss = running_loss / (epochs * len(trainloader))
-    return avg_trainloss
-
-
-def test(net, testloader, device):
-    """Validate the model on the test set."""
-    net.to(device)
-    criterion = torch.nn.BCELoss()
-    correct, loss = 0, 0.0
-    total = 0
-    with torch.no_grad():
-        for X_batch, y_batch in testloader:
-            outputs = net(X_batch)
-            batch_loss = criterion(outputs, y_batch)
-            loss += batch_loss.item()
-            predicted = (outputs > 0.5).float()
-            total += y_batch.size(0)
-            correct += (predicted == y_batch).sum().item()
-    accuracy = correct / total
-    loss = loss / len(testloader)
-    return loss, accuracy
-
-

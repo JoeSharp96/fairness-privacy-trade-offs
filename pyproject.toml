@@ -37,14 +37,14 @@ save-model = true
 strategy = "fedavg"
 
 # Data settings
-dataset = "adult"
-distribution = 'non-iid'
+dataset = "fashion_mnist"
+distribution = 'iid'
 batch-size = 16
 min-partition-size = 16
 alpha = 0.5
 
 # Q-FedAvg Params
-q = 0.005
+q = 0.001
 
 # Ditto Parameters
 ditto = false
@@ -54,7 +54,7 @@ ditto-lambda = 0.01
 
 # Training Parameters
 local-epochs = 1
-learning-rate = 0.05
+learning-rate = 0.005
 
 # DP Settings
 dp-enabled = false
