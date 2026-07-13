@@ -37,7 +37,7 @@ save-model = true
 strategy = "fedavg"
 
 # Data settings
-dataset = "fashion_mnist"
+dataset = "mnist"
 distribution = 'iid'
 batch-size = 16
 min-partition-size = 16
@@ -47,7 +47,7 @@ alpha = 0.5
 q = 0.001
 
 # Ditto Parameters
-ditto = false
+ditto = true
 ditto-lr = 0.001
 ditto-local-epochs = 1
 ditto-lambda = 0.01
@@ -57,9 +57,9 @@ local-epochs = 1
 learning-rate = 0.005
 
 # DP Settings
-dp-enabled = false
-dp-mode = "server"
-epsilon = 100.0
+dp-enabled = true
+dp-mode = "local"
+epsilon = 8.0
 delta = 1e-5
 max-grad-norm = 1.0
 max-physical-batch-size = 32

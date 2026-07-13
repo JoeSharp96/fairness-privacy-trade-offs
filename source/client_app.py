@@ -54,7 +54,7 @@ def train(msg: Message, context: Context):
 
     lr = context.run_config['learning-rate']
     epochs = context.run_config["local-epochs"]
-    train_loss = client.model.fit(trainloader=client.trainloader, device=device, train_config=msg.content["config"])
+    train_loss = client.fit(client.model, device, msg.content["config"])
 
     # Construct and return reply Message
     # Save updated global model parameters.
@@ -69,10 +69,11 @@ def train(msg: Message, context: Context):
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         client.ditto_model.to(device)
 
-        ditto_train_loss = client.ditto_model.fit(
-            trainloader=client.trainloader,
-            device=device,
-            train_config=msg.content["config"]
+        ditto_train_loss = client.fit(
+            client.ditto_model, 
+            device, 
+            msg.content["config"],
+            ditto=True
         )
         
         # Save updated personalised model parameters.

@@ -31,5 +31,7 @@ class Net(nn.Module):
         self.alpha = alpha
         self.partition_by = partition_by
         self.ditto = ditto
+        self.optimizer = None
+        self.criterion = None
         self.lmbda = None
         self.global_params = None
