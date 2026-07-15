@@ -23,15 +23,15 @@ def train(msg: Message, context: Context):
         lr=context.run_config['learning-rate'],
         epochs=context.run_config["local-epochs"],
         batch_size=context.run_config["batch-size"],
-        num_partitions=10,
+        num_partitions=context.node_config["num-partitions"],
         distribution=context.run_config["distribution"],
         alpha=context.run_config["alpha"],
-        ditto=msg.content["config"]["ditto"]
+        ditto=msg.content["config"]["ditto"],
+        is_malicious=msg.content["config"]["is_malicious"]
     )
     client.model.load_state_dict(msg.content["arrays"].to_torch_state_dict())
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     client.model.to(device)
-    print(msg.content["config"]["is_malicious"])
 
     if msg.content["config"]["ditto"]:
         # Store this rounds global params to bound personalised model.

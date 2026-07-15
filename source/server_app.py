@@ -54,7 +54,8 @@ def main(grid: Grid, context: Context) -> None:
         train_config=ConfigRecord(train_config),
         evaluate_config=ConfigRecord({"ditto": context.run_config["ditto"], "dataset": context.run_config["dataset"], "distribution": context.run_config["distribution"]}),
         num_rounds=num_rounds,
-        evaluate_fn=global_evaluate
+        evaluate_fn=global_evaluate,
+        fraction_malicious=context.run_config["fraction-malicious"]
     )
 
     # Record fairness metrics
