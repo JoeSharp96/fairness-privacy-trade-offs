@@ -7,12 +7,14 @@ import source.models.mnist as mnist
 import source.models.fashion_mnist as fashion_mnist
 import source.models.femnist as femnist
 import source.models.adult as adult
+import source.attacks as attack
 
 class Client:
-    def __init__(self, model: Net, ditto_model: Net, partition_id: int):
+    def __init__(self, model: Net, ditto_model: Net, partition_id: int, is_malicious: bool = False):
         self.model = model
         self.ditto_model = ditto_model
         self.partition_id = partition_id
+        self.is_malicious = is_malicious
         self.trainloader = None
         self.testloader = None
 
@@ -39,6 +41,8 @@ class Client:
                 # Train ditto model
                 if ditto:
                     self.ditto_train(model)
+                if self.is_malicious and ditto == False:
+                    labels = attack.flip_labels(labels, 10)
                 model.optimizer.step()
                 running_loss += loss.item()
         return running_loss
@@ -81,13 +85,13 @@ class Client:
         return avg_trainloss
 
 class AdultClient(Client):
-    def __init__(self, partition_id, lr, epochs, batch_size, num_partitions, distribution, alpha, ditto):
+    def __init__(self, partition_id, lr, epochs, batch_size, num_partitions, distribution, alpha, ditto, is_malicious=False):
         self.model = adult.Adult(lr, epochs, batch_size, num_partitions, distribution, alpha, ditto = ditto)
         if ditto:
             self.ditto_model = adult.Adult(lr, epochs, batch_size, num_partitions, distribution, alpha, ditto = ditto)
         else:
             self.ditto_model = None
-        super().__init__(self.model, self.ditto_model, partition_id)
+        super().__init__(self.model, self.ditto_model, partition_id, is_malicious)
 
     def load_data(self):
         self.trainloader, self.testloader = adult.load_data(self.partition_id, self.model.num_partitions, self.model.batch_size, self.model.alpha, self.model.distribution)
@@ -126,13 +130,13 @@ class AdultClient(Client):
         return avg_trainloss
 
 class FashionMnistClient(Client):
-    def __init__(self, partition_id, lr, epochs, batch_size, num_partitions, distribution, alpha, ditto):
+    def __init__(self, partition_id, lr, epochs, batch_size, num_partitions, distribution, alpha, ditto, is_malicious=False):
         self.model = fashion_mnist.FashionMnist(lr, epochs, batch_size, num_partitions, distribution, alpha, ditto = ditto)
         if ditto:
             self.ditto_model = fashion_mnist.FashionMnist(lr, epochs, batch_size, num_partitions, distribution, alpha, ditto = ditto)
         else:
             self.ditto_model = None
-        super(FashionMnistClient, self).__init__(self.model, self.ditto_model, partition_id)
+        super(FashionMnistClient, self).__init__(self.model, self.ditto_model, partition_id, is_malicious)
 
     def load_data(self):
         self.trainloader, self.testloader = fashion_mnist.load_data(self.partition_id, self.model.num_partitions, self.model.batch_size, self.model.alpha, self.model.distribution)
@@ -144,13 +148,13 @@ class FashionMnistClient(Client):
         return super().fit(model,device,train_config,ditto)
 
 class MnistClient(Client):
-    def __init__(self, partition_id, lr, epochs, batch_size, num_partitions, distribution, alpha, ditto):
+    def __init__(self, partition_id, lr, epochs, batch_size, num_partitions, distribution, alpha, ditto, is_malicious=False):
         self.model = mnist.Mnist(lr, epochs, batch_size, num_partitions, distribution, alpha, ditto = ditto)
         if ditto:
             self.ditto_model = mnist.Mnist(lr, epochs, batch_size, num_partitions, distribution, alpha, ditto = ditto)
         else:
             self.ditto_model = None
-        super().__init__(self.model, self.ditto_model, partition_id)
+        super().__init__(self.model, self.ditto_model, partition_id, is_malicious)
 
     def load_data(self):
         self.trainloader, self.testloader = mnist.load_data(self.partition_id, self.model.num_partitions, self.model.batch_size, self.model.alpha, self.model.distribution)
@@ -162,13 +166,13 @@ class MnistClient(Client):
         return super().fit(model,device,train_config,ditto)
 
 class FemnistClient(Client):
-    def __init__(self, partition_id, lr, epochs, batch_size, num_partitions, distribution, alpha, ditto):
+    def __init__(self, partition_id, lr, epochs, batch_size, num_partitions, distribution, alpha, ditto, is_malicious=False):
         self.model = femnist.Femnist(lr, epochs, batch_size, num_partitions, distribution, alpha, ditto = ditto)
         if ditto:
             self.ditto_model = femnist.Femnist(lr, epochs, batch_size, num_partitions, distribution, alpha, ditto = ditto)
         else:
             self.ditto_model = None
-        super().__init__(self.model, self.ditto_model, partition_id)
+        super().__init__(self.model, self.ditto_model, partition_id, is_malicious)
 
     def load_data(self):
         self.trainloader, self.testloader = femnist.load_data(self.partition_id, self.model.num_partitions, self.model.batch_size, self.model.alpha, self.model.distribution)

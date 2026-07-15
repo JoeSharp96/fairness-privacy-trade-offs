@@ -69,7 +69,6 @@ class CustomFedAvg(FedAvg):
         malicious_nodes = {}
         for node, flag in zip(node_ids, [True] * num_malicious + [False] * num_friendly):
             malicious_nodes[node] = flag
-        print(malicious_nodes)
         return malicious_nodes
 
 

@@ -1,16 +1,19 @@
 
-from flwr.app import UserConfig
-from datetime import datetime
+import os
 from pathlib import Path
 import json
 import pandas as pd
 import matplotlib.pyplot as plt
 
+# Create int that counts number of directories in the dir.
+# Each run gets it's own file, then keep everything else the same
+# Pass in already generated output path. Then extend path and mkdir with new value.
+# Save the run_config.
 def output_dir(config):
     """Create directory for output graph and data"""
-    current_time = datetime.now()
-    out_dir = current_time.strftime("%Y-%m-%d/%H-%M-%S")
-    path = Path.cwd() / f"output/{out_dir}"
+    print(os.listdir(f"output/{config['out-dir']}"))
+    dirs = len(os.listdir(f"output/{config['out-dir']}"))
+    path = Path.cwd() / f"output/{config['out-dir']}/{dirs}"
     path.mkdir(parents=True, exist_ok=False)
 
     with open(f"{path}/run_config.json","w",encoding="utf-8") as fp:
