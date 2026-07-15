@@ -29,16 +29,20 @@ clientapp = "source.client_app:app"
 
 [tool.flwr.app.config]
 # Server Params
-num-server-rounds = 3
+num-server-rounds = 2
 min-available-nodes = 10
-fraction-evaluate = 0.5
-fraction-train = 0.5
+fraction-evaluate = 0.1
+fraction-train = 0.1
 save-model = true
+out-dir = "mnist_fedavg.sh_1784122965"
 strategy = "fedavg"
+
+# Threat Parameters
+fraction-malicious = 0.0
 
 # Data settings
 dataset = "mnist"
-distribution = 'iid'
+distribution = "non-iid"
 batch-size = 16
 min-partition-size = 16
 alpha = 0.5
@@ -47,17 +51,17 @@ alpha = 0.5
 q = 0.001
 
 # Ditto Parameters
-ditto = true
+ditto = false
 ditto-lr = 0.001
 ditto-local-epochs = 1
 ditto-lambda = 0.01
 
 # Training Parameters
 local-epochs = 1
-learning-rate = 0.005
+learning-rate = 0.5
 
 # DP Settings
-dp-enabled = true
+dp-enabled = false
 dp-mode = "local"
 epsilon = 8.0
 delta = 1e-5
