@@ -127,7 +127,7 @@ def load_centralized_dataset(distribution=None, batch_size = 16):
     """Load and split the centralized dataset"""
     global fds
     if fds is None:
-        partitioner = get_partitioner(distribution, None, None, "writer_id", True)
+        partitioner = get_partitioner(distribution, 1, None, "writer_id", True)
         preprocessor = Divider(
             divide_config={"train": {"train":0.8, "test":0.2}}
         )
