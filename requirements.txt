@@ -3,3 +3,4 @@ flwr-datasets[vision]>=0.6.0
 torch==2.8.0
 torchvision==0.23.0
 opacus==1.6.0
+toml-cli
