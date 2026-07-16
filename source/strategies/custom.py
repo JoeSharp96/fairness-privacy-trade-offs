@@ -83,7 +83,7 @@ class CustomFedAvg(FedAvg):
         train_config: ConfigRecord | None = None,
         evaluate_config: ConfigRecord | None = None,
         evaluate_fn: Callable[[int, ArrayRecord], MetricRecord | None] | None = None,
-        fraction_malicious: float = 0.5
+        fraction_malicious: float = 0.0
     ) -> Result:
         """Execute the federated learning strategy.
 

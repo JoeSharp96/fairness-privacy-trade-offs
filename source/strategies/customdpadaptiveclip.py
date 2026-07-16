@@ -1,17 +1,36 @@
+from flwr.serverapp.strategy import DifferentialPrivacyServerSideAdaptiveClipping, Result
+import math
 import io
 import time
 from logging import INFO
-from typing import Callable
-
-from flwr.app import ArrayRecord, ConfigRecord, MetricRecord
+from typing import Callable, Iterable, Optional
+from flwr.app import ArrayRecord, ConfigRecord, Message, MetricRecord, RecordDict, MessageType
 from flwr.common import log
 from flwr.serverapp import Grid
-from flwr.serverapp.strategy import DifferentialPrivacyServerSideAdaptiveClipping, Result
-from flwr.serverapp.strategy.strategy_utils import log_strategy_start_info
+from flwr.serverapp.strategy.strategy_utils import log_strategy_start_info, sample_nodes
 from source.utils.strategy import get_individual_metrics
 
 class CustomDifferentialPrivacyAdaptiveClipping(DifferentialPrivacyServerSideAdaptiveClipping):
-    
+
+    def configure_train(
+        self, server_round: int, arrays: ArrayRecord, config: ConfigRecord, grid: Grid, malicious_nodes: dict
+    ) -> Iterable[Message]:
+        """Configure the next round of training."""
+        self.current_arrays = arrays
+        return self.strategy.configure_train(server_round, arrays, config, grid, malicious_nodes)
+
+    def is_malicious(self, grid: Grid, fraction_malicious: float) -> dict:
+        node_ids = grid.get_node_ids()
+        if fraction_malicious < 0.0 or fraction_malicious > 1.0:
+            ValueError(f"Invalid fraction_malicious value: {fraction_malicious}. Value must be between 0.0 and 1.0.")
+            fraction_malicious = 0.0
+        num_malicious = int(len(node_ids) * fraction_malicious)
+        num_friendly = len(node_ids) - num_malicious
+        malicious_nodes = {}
+        for node, flag in zip(node_ids, [True] * num_malicious + [False] * num_friendly):
+            malicious_nodes[node] = flag
+        return malicious_nodes
+
     def start(
         self,
         grid: Grid,
@@ -22,6 +41,7 @@ class CustomDifferentialPrivacyAdaptiveClipping(DifferentialPrivacyServerSideAda
         train_config: ConfigRecord | None = None,
         evaluate_config: ConfigRecord | None = None,
         evaluate_fn: Callable[[int, ArrayRecord], MetricRecord | None] | None = None,
+        fraction_malicious: float = 0.0
     ) -> Result:
         """Execute the federated learning strategy.
 
@@ -78,7 +98,7 @@ class CustomDifferentialPrivacyAdaptiveClipping(DifferentialPrivacyServerSideAda
                 result.evaluate_metrics_serverapp[0] = res
 
         arrays = initial_arrays
-
+        malicious_nodes = self.is_malicious(grid, fraction_malicious)
         for current_round in range(1, num_rounds + 1):
             log(INFO, "")
             log(INFO, "[ROUND %s/%s]", current_round, num_rounds)
@@ -95,6 +115,7 @@ class CustomDifferentialPrivacyAdaptiveClipping(DifferentialPrivacyServerSideAda
                     arrays,
                     train_config,
                     grid,
+                    malicious_nodes
                 ),
                 timeout=timeout,
             )

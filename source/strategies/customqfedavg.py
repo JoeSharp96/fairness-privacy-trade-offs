@@ -15,6 +15,61 @@ from source.utils.strategy import get_individual_metrics
 
 class CustomQFedAvg(QFedAvg):
     """Custom FedAvg that allows for fairness metrics to be calculated and logged during training."""
+    def _construct_messages(
+        self, record: RecordDict, node_ids: list[int], message_type: str, malicious_nodes: dict = None
+    ) -> Iterable[Message]:
+        """Construct N Messages carrying the same RecordDict payload."""
+        messages = []
+        for node_id in node_ids:  # one message for each node
+            node_record = record.copy()
+            if malicious_nodes is not None:
+                node_record[self.configrecord_key]["is_malicious"] = malicious_nodes[node_id]
+            message = Message(
+                content=node_record,
+                message_type=message_type,
+                dst_node_id=node_id,
+            )
+            messages.append(message)
+        return messages
+
+    def configure_train(
+        self, server_round: int, arrays: ArrayRecord, config: ConfigRecord, grid: Grid, malicious_nodes: dict
+    ) -> Iterable[Message]:
+        """Configure the next round of federated training."""
+        self.current_arrays = arrays.copy()
+        # Do not configure federated train if fraction_train is 0.
+        if self.fraction_train == 0.0:
+            return []
+        # Sample nodes
+        num_nodes = int(len(list(grid.get_node_ids())) * self.fraction_train)
+        sample_size = max(num_nodes, self.min_train_nodes)
+        node_ids, num_total = sample_nodes(grid, self.min_available_nodes, sample_size)
+        log(
+            INFO,
+            "configure_train: Sampled %s nodes (out of %s)",
+            len(node_ids),
+            len(num_total),
+        )
+        # Always inject current server round
+        config["server-round"] = server_round
+
+        # Construct messages
+        record = RecordDict(
+            {self.arrayrecord_key: arrays, self.configrecord_key: config}
+        )
+        return self._construct_messages(record, node_ids, MessageType.TRAIN, malicious_nodes)
+    
+    def is_malicious(self, grid: Grid, fraction_malicious: float) -> dict:
+        node_ids = grid.get_node_ids()
+        if fraction_malicious < 0.0 or fraction_malicious > 1.0:
+            ValueError(f"Invalid fraction_malicious value: {fraction_malicious}. Value must be between 0.0 and 1.0.")
+            fraction_malicious = 0.0
+        num_malicious = int(len(node_ids) * fraction_malicious)
+        num_friendly = len(node_ids) - num_malicious
+        malicious_nodes = {}
+        for node, flag in zip(node_ids, [True] * num_malicious + [False] * num_friendly):
+            malicious_nodes[node] = flag
+        return malicious_nodes
 
     def start(
         self,
@@ -26,6 +81,7 @@ class CustomQFedAvg(QFedAvg):
         train_config: ConfigRecord | None = None,
         evaluate_config: ConfigRecord | None = None,
         evaluate_fn: Callable[[int, ArrayRecord], MetricRecord | None] | None = None,
+        fraction_malicious: float = 0.0
     ) -> Result:
         """Execute the federated learning strategy.
 
@@ -82,7 +138,7 @@ class CustomQFedAvg(QFedAvg):
                 result.evaluate_metrics_serverapp[0] = res
 
         arrays = initial_arrays
-
+        malicious_nodes = self.is_malicious(grid, fraction_malicious)
         for current_round in range(1, num_rounds + 1):
             log(INFO, "")
             log(INFO, "[ROUND %s/%s]", current_round, num_rounds)
@@ -99,6 +155,7 @@ class CustomQFedAvg(QFedAvg):
                     arrays,
                     train_config,
                     grid,
+                    malicious_nodes
                 ),
                 timeout=timeout,
             )
