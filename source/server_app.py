@@ -14,15 +14,24 @@ import source.models.femnist as femnist
 # Create ServerApp
 app = ServerApp()
 
-class Server:
-    def __init__(self, model, dataset):
+class ServerConfig:
+    def __init__(self, model: adult.Adult, dataset: str, seed: int):
         self.model = model
         self.dataset = dataset
+        self.seed = seed
         self.testloader = None
     
     def load_data(self):
         if str.lower(self.dataset) == "adult":
-            self.testloader = adult.load_centralized_dataset(self.model.distribution, self.model.batch_size)
+            self.testloader = adult.load_centralized_dataset(
+                num_partitions=self.model.num_partitions,
+                batch_size=self.model.batch_size, 
+                alpha=self.model.alpha,
+                sensitive_feature=self.model.sensitive_feature,
+                sensitive_value=self.model.sensitive_value,
+                skew=self.model.skew,
+                seed=self.seed
+                )
         elif str.lower(self.dataset) == "mnist":
             self.testloader = mnist.load_centralized_dataset(self.model.distribution, self.model.batch_size)
         elif str.lower(self.dataset) == "fashion_mnist":
@@ -34,17 +43,29 @@ class Server:
 @app.main()
 def main(grid: Grid, context: Context) -> None:
     """Main entry point for the ServerApp."""
-    # Read run config
     num_rounds: int = context.run_config["num-server-rounds"]
+
     # Load global model and intialise parameters
     Net = get_model(context.run_config["dataset"])
     config = context.run_config
-    global_model = Net(config["learning-rate"], config["local-epochs"], config["batch-size"], 10, config["distribution"], config["alpha"], partition_by="race")
+    # !! Net() initialization has a magic number for partition_size. I think this is because it doesn't automatically pass in...
+    # I should create a variable in the shell script that is used to set the number nodes and partitions.
+    global_model = Net(
+        lr=config["learning-rate"],
+        epochs=config["local-epochs"],
+        batch_size=config["batch-size"], 
+        num_partitions=config["num-partitions"], 
+        distribution=config["distribution"], 
+        alpha=config["alpha"], 
+        sensitive_feature=config["sensitive-feature"],
+        sensitive_value=config["sensitive-value"],
+        skew=config["skew"]
+        )
     arrays = ArrayRecord(global_model.state_dict())
-    server = Server(global_model, context.run_config["dataset"])
+    server = ServerConfig(global_model, config["dataset"], config["seed"])
 
     # Initialize FL strategy
-    strategy, train_config = get_fl_strategy(context.run_config)
+    strategy, train_config = get_fl_strategy(config)
 
     # Start strategy for `num_rounds`
     result, individual_metrics = strategy.start(
@@ -72,12 +93,12 @@ def main(grid: Grid, context: Context) -> None:
         save_path = output_dir(config=context.run_config)
         state_dict = result.arrays.to_torch_state_dict()
         torch.save(state_dict, f"{save_path}/final_model.pt")
-        save_metrics(result, save_path, num_rounds, loss_disparity, acc_disparity, context.run_config["ditto"])
-        save_graphs(save_path,num_rounds)
+        save_metrics(result, save_path, num_rounds, context.run_config["alpha"], loss_disparity, acc_disparity, context.run_config["ditto"])
+        save_graphs(save_path,num_rounds,context.run_config["alpha"])
     
     
 
-def global_evaluate(server_round: int, arrays: ArrayRecord, server) -> MetricRecord:
+def global_evaluate(server_round: int, arrays: ArrayRecord, server: ServerConfig) -> MetricRecord:
     """Evaluate model on central data."""
 
     # Load the model and initialize it with the received weights
@@ -89,10 +110,10 @@ def global_evaluate(server_round: int, arrays: ArrayRecord, server) -> MetricRec
         server.load_data()
 
     # Evaluate the global model on the test set
-    test_loss, test_acc = server.model.test(server.testloader, device)
+    test_loss, test_acc, test_dp, test_eo, test_min_acc, test_maj_acc = server.model.test(server.testloader, device, True)
 
     # Return the evaluation metrics
-    return MetricRecord({"accuracy": test_acc, "loss": test_loss})
+    return MetricRecord({"accuracy": test_acc, "loss": test_loss, "demographic_parity": test_dp, "equalised_odds": test_eo, "minority_accuracy": test_min_acc, "majority_accuracy": test_maj_acc})
 
 def get_disparity(individual_eval_metrics, agg_eval_acc, agg_eval_loss):
     """Calculate loss and accuracy disparity of global model across client local data."""

@@ -26,6 +26,10 @@ def train(msg: Message, context: Context):
         num_partitions=context.node_config["num-partitions"],
         distribution=context.run_config["distribution"],
         alpha=context.run_config["alpha"],
+        sensitive_feature=context.run_config["sensitive-feature"],
+        sensitive_value=context.run_config["sensitive-value"],
+        skew=context.run_config["skew"],
+        seed=context.run_config["seed"],
         ditto=msg.content["config"]["ditto"],
         is_malicious=msg.content["config"]["is_malicious"]
     )
@@ -99,9 +103,13 @@ def evaluate(msg: Message, context: Context):
         lr=context.run_config['learning-rate'],
         epochs=context.run_config["local-epochs"],
         batch_size=context.run_config["batch-size"],
-        num_partitions=10,
+        num_partitions=context.run_config["num-partitions"],
         distribution=context.run_config["distribution"],
         alpha=context.run_config["alpha"],
+        sensitive_feature=context.run_config["sensitive-feature"],
+        sensitive_value=context.run_config["sensitive-value"],
+        skew=context.run_config["skew"],
+        seed=context.run_config["seed"],
         ditto=msg.content["config"]["ditto"]
     )
     client.model.load_state_dict(msg.content["arrays"].to_torch_state_dict())

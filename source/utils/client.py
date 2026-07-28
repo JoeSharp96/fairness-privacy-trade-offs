@@ -1,6 +1,7 @@
 
 import torch
 from opacus.utils.batch_memory_manager import BatchMemoryManager
+from opacus.accountants.utils import get_noise_multiplier
 from opacus import PrivacyEngine
 import source.models.net as Net
 import source.models.mnist as mnist
@@ -10,11 +11,12 @@ import source.models.adult as adult
 import source.attacks as attack
 
 class Client:
-    def __init__(self, model: Net, ditto_model: Net, partition_id: int, is_malicious: bool = False):
+    def __init__(self, model: Net, ditto_model: Net, partition_id: int, seed: int, is_malicious: bool = False):
         self.model = model
         self.ditto_model = ditto_model
         self.partition_id = partition_id
         self.is_malicious = is_malicious
+        self.seed = seed
         self.trainloader = None
         self.testloader = None
 
@@ -47,9 +49,15 @@ class Client:
                 running_loss += loss.item()
         return running_loss
 
-    
+    # Unclupped_num_std needs to be equal to noise multiplier * 
     def fit_with_dp(self, model, train_config):
         privacy_engine = PrivacyEngine()
+        #nm = get_noise_multiplier(
+            #target_epsilon=train_config["dp_epsilon"],
+            #target_delta=train_config["dp_delta"],
+            #sample_rate=train_config["batch_size"]*len(self.trainloader),
+            #epochs=model.epochs   
+        #)
         model, model.optimizer, dp_trainloader = privacy_engine.make_private_with_epsilon(
             module=model,
             optimizer=model.optimizer,
@@ -62,8 +70,7 @@ class Client:
             target_unclipped_quantile = 0.5,
             clipbound_learning_rate = 0.2,
             max_clipbound = 100.0,
-            min_clipbound = train_config["dp_min_bound"],
-            unclipped_num_std = 2.0
+            min_clipbound = train_config["dp_min_bound"]
         )
         return model, model.optimizer, dp_trainloader
     
@@ -85,16 +92,51 @@ class Client:
         return avg_trainloss
 
 class AdultClient(Client):
-    def __init__(self, partition_id, lr, epochs, batch_size, num_partitions, distribution, alpha, ditto, is_malicious=False):
-        self.model = adult.Adult(lr, epochs, batch_size, num_partitions, distribution, alpha, ditto = ditto)
+    def __init__(
+            self, 
+            partition_id: int, 
+            lr: float, 
+            epochs: int, 
+            batch_size: int, 
+            num_partitions: int, 
+            distribution: str, 
+            alpha: float, 
+            sensitive_feature: str,
+            sensitive_value: str,
+            skew: float,
+            ditto: bool, 
+            seed: int,
+            is_malicious: bool=False
+            ):
+        self.model = adult.Adult(
+            lr=lr, 
+            epochs=epochs, 
+            batch_size=batch_size, 
+            num_partitions=num_partitions, 
+            distribution=distribution, 
+            alpha=alpha, 
+            sensitive_feature=sensitive_feature, 
+            sensitive_value=sensitive_value, 
+            skew=skew, 
+            ditto=ditto
+            )
         if ditto:
-            self.ditto_model = adult.Adult(lr, epochs, batch_size, num_partitions, distribution, alpha, ditto = ditto)
+            self.ditto_model = adult.Adult(lr, epochs, batch_size, num_partitions, distribution, alpha, sensitive_feature, sensitive_value, skew, ditto = ditto)
         else:
             self.ditto_model = None
-        super().__init__(self.model, self.ditto_model, partition_id, is_malicious)
+        super().__init__(self.model, self.ditto_model, partition_id, seed, is_malicious)
 
     def load_data(self):
-        self.trainloader, self.testloader = adult.load_data(self.partition_id, self.model.num_partitions, self.model.batch_size, self.model.alpha, self.model.distribution)
+        self.trainloader, self.testloader = adult.load_data(
+            partition_id=self.partition_id, 
+            num_partitions=self.model.num_partitions, 
+            batch_size=self.model.batch_size, 
+            alpha=self.model.alpha, 
+            sensitive_feature=self.model.sensitive_feature,
+            sensitive_value=self.model.sensitive_value,
+            skew=self.model.skew,
+            seed=self.seed
+            )
 
     def train(self, model: Net, trainloader, device, epochs, ditto):
         running_loss = 0.0

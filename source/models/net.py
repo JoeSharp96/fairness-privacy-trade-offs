@@ -21,7 +21,19 @@ from sklearn.preprocessing import OrdinalEncoder, StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
 
 class Net(nn.Module):
-    def __init__(self, lr: float, epochs: int, batch_size: int, num_partitions: int, distribution: str, alpha: float, partition_by: str, ditto: bool = False):
+    def __init__(
+            self,
+            lr: float,
+            epochs: int,
+            batch_size: int,
+            num_partitions: int,
+            distribution: str,
+            alpha: float,
+            sensitive_feature: str,
+            sensitive_value: str,
+            skew: float = 0.3,
+            ditto: bool = False
+            ):
         super(Net, self).__init__()
         self.lr = lr
         self.epochs = epochs
@@ -29,7 +41,9 @@ class Net(nn.Module):
         self.num_partitions = num_partitions
         self.distribution = distribution
         self.alpha = alpha
-        self.partition_by = partition_by
+        self.sensitive_feature = sensitive_feature
+        self.sensitive_value = sensitive_value
+        self.skew = skew
         self.ditto = ditto
         self.optimizer = None
         self.criterion = None

@@ -29,23 +29,28 @@ clientapp = "source.client_app:app"
 
 [tool.flwr.app.config]
 # Server Params
-num-server-rounds = 2
-min-available-nodes = 10
-fraction-evaluate = 0.1
-fraction-train = 0.1
+num-server-rounds = 100
+min-available-nodes = 5
+fraction-evaluate = 0.2
+fraction-train = 0.2
 save-model = true
-out-dir = "mnist_fedavg.sh_1784122965"
+out-dir = "adult_non_dp.sh_1785237678"
 strategy = "fedavg"
 
 # Threat Parameters
 fraction-malicious = 0.0
 
 # Data settings
-dataset = "mnist"
+dataset = "adult"
 distribution = "non-iid"
 batch-size = 16
+num-partitions = 5
 min-partition-size = 16
-alpha = 0.5
+alpha = 100.0
+skew = 0.3
+sensitive-feature = "sex"
+sensitive-value = "female"
+seed = 42
 
 # Q-FedAvg Params
 q = 0.001
@@ -58,12 +63,12 @@ ditto-lambda = 0.01
 
 # Training Parameters
 local-epochs = 1
-learning-rate = 0.5
+learning-rate = 0.001
 
 # DP Settings
 dp-enabled = false
 dp-mode = "local"
-epsilon = 8.0
+epsilon = 5.0
 delta = 1e-5
 max-grad-norm = 1.0
 max-physical-batch-size = 32

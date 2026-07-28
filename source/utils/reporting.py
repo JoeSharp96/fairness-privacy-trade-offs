@@ -11,17 +11,26 @@ import matplotlib.pyplot as plt
 # Save the run_config.
 def output_dir(config):
     """Create directory for output graph and data"""
-    print(os.listdir(f"output/{config['out-dir']}"))
-    dirs = len(os.listdir(f"output/{config['out-dir']}"))
-    path = Path.cwd() / f"output/{config['out-dir']}/{dirs}"
-    path.mkdir(parents=True, exist_ok=False)
-
-    with open(f"{path}/run_config.json","w",encoding="utf-8") as fp:
-        json.dump(config,fp)
-
+    path = Path.cwd() / f"output/{config['out-dir']}/{config['skew']}"
+    if not os.path.exists(path):
+        print("hello")
+        path.mkdir(parents=True, exist_ok=False)
+        with open(f"{path}/results.json","w",encoding="utf-8") as fp:
+            results = {
+                "run_metrics":{},
+                "final_metrics":{
+                    "acc":{},
+                    "minority_acc":{},
+                    "majority_acc":{},
+                    "dp":{},
+                    "eo":{}
+                },
+                "run_config": config
+                }
+            json.dump(results,fp)
     return path
 
-def save_metrics(result, save_path, rounds, loss_disparity=None, acc_disparity=None, ditto=False):
+def save_metrics(result, save_path, rounds, alpha, loss_disparity=None, acc_disparity=None, ditto=False):
     """Save metrics to output directory as JSON file"""
     results = {"disparity": {"loss_disparity": loss_disparity, "acc_disparity": acc_disparity},
                "round_metrics": {},
@@ -35,7 +44,11 @@ def save_metrics(result, save_path, rounds, loss_disparity=None, acc_disparity=N
             "eval_client_loss": eval_client_metrics["eval_loss"],
             "eval_client_acc": eval_client_metrics["eval_acc"],
             "eval_server_loss": eval_server_metrics["loss"],
-            "eval_server_acc": eval_server_metrics["accuracy"]
+            "eval_server_acc": eval_server_metrics["accuracy"],
+            "eval_server_min_acc": eval_server_metrics["minority_accuracy"],
+            "eval_server_maj_acc": eval_server_metrics["majority_accuracy"],
+            "demographic_parity": eval_server_metrics["demographic_parity"],
+            "equalised_odds": eval_server_metrics["equalised_odds"]
         }
         results["round_metrics"][i] = round_result
         
@@ -46,19 +59,28 @@ def save_metrics(result, save_path, rounds, loss_disparity=None, acc_disparity=N
                 "ditto_eval_client_acc": eval_client_metrics["ditto_eval_acc"]
             }
             results["ditto_metrics"][i] = ditto_result
-    
-    with open(f"{save_path}/results.json", "w", encoding="utf-8") as fp:
-        json.dump(results, fp)
 
-def save_graphs(save_path, rounds):
+    data={}
+    if os.path.exists(f"{save_path}/results.json"):
+        with open(f"{save_path}/results.json", "r", encoding="utf-8") as fp:
+            data = json.load(fp)
+
+    with open(f"{save_path}/results.json", "w", encoding="utf-8") as fp:
+        data["run_metrics"][alpha] = results
+        data["final_metrics"]["acc"][alpha] = results["round_metrics"][rounds]["eval_server_acc"]
+        data["final_metrics"]["minority_acc"][alpha] = results["round_metrics"][rounds]["eval_server_min_acc"]
+        data["final_metrics"]["majority_acc"][alpha] = results["round_metrics"][rounds]["eval_server_maj_acc"]
+        data["final_metrics"]["dp"][alpha] = results["round_metrics"][rounds]["demographic_parity"]
+        data["final_metrics"]["eo"][alpha] = results["round_metrics"][rounds]["equalised_odds"]
+        json.dump(data, fp)
+    
+
+def save_graphs(save_path, rounds, alpha):
     """Creates matplotlib graphs of results and saves them as JPG files"""
     with open(f"{save_path}/results.json", "r") as jsonfile:
         data = json.load(jsonfile)
-        df = pd.DataFrame.from_dict(data["round_metrics"], orient="index")
-        #results = json.load(jsonfile)
-    
-    with open(f"{save_path}/run_config.json","r") as jsonfile:
-        config = json.load(jsonfile)
+        df = pd.DataFrame.from_dict(data["run_metrics"][str(alpha)]["round_metrics"], orient="index")
+        config = data["run_config"]
 
     epochs = config['local-epochs']
     if config['dp-enabled']:
