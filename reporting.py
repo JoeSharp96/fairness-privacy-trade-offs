@@ -9,7 +9,9 @@ import matplotlib.pyplot as plt
 PATH = sys.argv[1]
 ROUNDS = int(sys.argv[2])
 DP = bool(sys.argv[3])
-SKEW = [0.01, 0.05, 0.1, 0.2, 0.3]
+SKEW = ["0.05", "0.1", "0.2", "0.3"]
+SEEDS = [42, 1996, 24, 33, 258, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+ALPHA = ["0.5", "1.0", "10.0", "100.0"]
 
 
 def tune_fedavg():
@@ -74,19 +76,55 @@ def plot_accuracy():
     plt.savefig(f"{PATH}/eval_acc.jpg")
 
 def aggregate_results():
-    metrics ={}
-    for skew in SKEW:
-        with open(f"{PATH}/{skew}/results.json") as fp:
-            data = json.load(fp)
-        for metric in data['final_metrics'].keys():
-            if metric not in metrics:
-                metrics[metric] = {}
-            results = data['final_metrics'][metric].values()
-            metrics[metric][skew] = results
-    columns = data['final_metrics']['acc'].keys()
-    for metric in metrics.keys():
-        print(metrics[metric])
-        df = pd.DataFrame.from_dict(metrics[metric], orient='index', columns=columns)
-        df.to_csv(f"{PATH}/{metric}.csv")
+    for seed in SEEDS:
+        metrics ={}
+        for skew in SKEW:
+            with open(f"{PATH}/{seed}/{skew}/results.json") as fp:
+                data = json.load(fp)
+            for metric in data['final_metrics'].keys():
+                if metric not in metrics:
+                    metrics[metric] = {}
+                results = data['final_metrics'][metric].values()
+                metrics[metric][skew] = results
+        for metric in metrics.keys():
+            df = pd.DataFrame.from_dict(metrics[metric], orient='columns')
+            df['alpha'] = ALPHA
+            df.set_index(['alpha'], inplace=True)
+            df.to_csv(f"{PATH}/{seed}/{metric}.csv")
+
+def mean_results():
+    for metric in ("acc","dp","eo"):
+        df_list = []
+        for seed in SEEDS:
+            df = pd.read_csv(f"{PATH}/{seed}/{metric}.csv", index_col=0)
+            df_list.append(df)
+        mean_df = pd.concat(df_list).groupby(level=0).mean()
+        std_df = pd.concat(df_list).groupby(level=0).std()
+        mean_df.to_csv(f"{PATH}/{metric}_mean.csv")
+        std_df.to_csv(f"{PATH}/{metric}_std.csv")
+
+def plot_results():
+    mean_list = []
+    std_list=[]
+    for metric in ("acc","dp","eo"):
+        mean_df = pd.read_csv(f"{PATH}/{metric}_mean.csv", index_col=0)
+        mean_list.append(mean_df)
+        std_df = pd.read_csv(f"{PATH}/{metric}_std.csv", index_col=0)
+        std_list.append(std_df)
+    fig, axs = plt.subplots(1,3, figsize=(16, 4))
+    fig.suptitle("Adult")
+    
+    for mean_df, std_df, metric, i in zip(mean_list, std_list, ["Accuracy", "Demographic Parity", "Equalised Odds"], range(3)):
+        for skew in SKEW:
+            axs[i].plot(ALPHA, mean_df[skew], label=skew)
+            axs[i].fill_between(ALPHA, mean_df[skew]-std_df[skew], mean_df[skew]+std_df[skew], alpha=0.5)
+        axs[i].set_title(metric)
+        axs[i].set_xlabel("\u03B1")
+        y_label = "Acc" if metric == "Accuracy" else "Difference"
+        axs[i].set_ylabel(y_label)
+        axs[i].legend(title="Minority Skew")
+    fig.savefig(f"{PATH}/eval_acc.jpg")
 
 aggregate_results()
+mean_results()
+plot_results()

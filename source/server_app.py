@@ -7,6 +7,7 @@ from source.utils.reporting import output_dir, save_metrics, save_graphs
 from source.utils.server import get_fl_strategy, get_functions
 from source.utils.models import get_model
 import source.models.adult as adult
+import source.models.compas as compas
 import source.models.mnist as mnist
 import source.models.fashion_mnist as fashion_mnist
 import source.models.femnist as femnist
@@ -15,7 +16,7 @@ import source.models.femnist as femnist
 app = ServerApp()
 
 class ServerConfig:
-    def __init__(self, model: adult.Adult, dataset: str, seed: int):
+    def __init__(self, model: adult.Adult | compas.Compas, dataset: str, seed: int):
         self.model = model
         self.dataset = dataset
         self.seed = seed
@@ -24,6 +25,16 @@ class ServerConfig:
     def load_data(self):
         if str.lower(self.dataset) == "adult":
             self.testloader = adult.load_centralized_dataset(
+                num_partitions=self.model.num_partitions,
+                batch_size=self.model.batch_size, 
+                alpha=self.model.alpha,
+                sensitive_feature=self.model.sensitive_feature,
+                sensitive_value=self.model.sensitive_value,
+                skew=self.model.skew,
+                seed=self.seed
+                )
+        elif str.lower(self.dataset) == "compas":
+            self.testloader = compas.load_centralized_dataset(
                 num_partitions=self.model.num_partitions,
                 batch_size=self.model.batch_size, 
                 alpha=self.model.alpha,
@@ -95,6 +106,8 @@ def main(grid: Grid, context: Context) -> None:
         torch.save(state_dict, f"{save_path}/final_model.pt")
         save_metrics(result, save_path, num_rounds, context.run_config["alpha"], loss_disparity, acc_disparity, context.run_config["ditto"])
         save_graphs(save_path,num_rounds,context.run_config["alpha"])
+    # Clear GPU cache at the end of each run
+    torch.cuda.empty_cache()
     
     
 
@@ -110,6 +123,7 @@ def global_evaluate(server_round: int, arrays: ArrayRecord, server: ServerConfig
         server.load_data()
 
     # Evaluate the global model on the test set
+    print(server.testloader)
     test_loss, test_acc, test_dp, test_eo, test_min_acc, test_maj_acc = server.model.test(server.testloader, device, True)
 
     # Return the evaluation metrics

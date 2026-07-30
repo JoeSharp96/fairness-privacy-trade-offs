@@ -8,6 +8,7 @@ import source.models.mnist as mnist
 import source.models.fashion_mnist as fashion_mnist
 import source.models.femnist as femnist
 import source.models.adult as adult
+import source.models.compas as compas
 import source.attacks as attack
 
 class Client:
@@ -91,6 +92,89 @@ class Client:
         avg_trainloss = running_loss / (epochs * len(self.trainloader))
         return avg_trainloss
 
+class CompasClient(Client):
+    def __init__(
+            self, 
+            partition_id: int, 
+            lr: float, 
+            epochs: int, 
+            batch_size: int, 
+            num_partitions: int, 
+            distribution: str, 
+            alpha: float, 
+            sensitive_feature: str,
+            sensitive_value: str,
+            skew: float,
+            ditto: bool, 
+            seed: int,
+            is_malicious: bool=False
+            ):
+        self.model = compas.Compas(
+            lr=lr, 
+            epochs=epochs, 
+            batch_size=batch_size, 
+            num_partitions=num_partitions, 
+            distribution=distribution, 
+            alpha=alpha, 
+            sensitive_feature=sensitive_feature, 
+            sensitive_value=sensitive_value, 
+            skew=skew, 
+            ditto=ditto
+            )
+        if ditto:
+            self.ditto_model = compas.Compas(lr, epochs, batch_size, num_partitions, distribution, alpha, sensitive_feature, sensitive_value, skew, ditto = ditto)
+        else:
+            self.ditto_model = None
+        super().__init__(self.model, self.ditto_model, partition_id, seed, is_malicious)
+
+    def load_data(self, output_dir):
+        self.trainloader, self.testloader = compas.load_data(
+            partition_id=self.partition_id, 
+            num_partitions=self.model.num_partitions, 
+            batch_size=self.model.batch_size, 
+            alpha=self.model.alpha, 
+            sensitive_feature=self.model.sensitive_feature,
+            sensitive_value=self.model.sensitive_value,
+            skew=self.model.skew,
+            seed=self.seed,
+            output_directory=output_dir
+            )
+
+    def train(self, model: Net, trainloader, device, epochs, ditto):
+        running_loss = 0.0
+        model.train()
+        for _ in range(epochs):
+            for X_batch, y_batch in trainloader:
+                X_batch = X_batch.to(device)
+                y_batch = y_batch.to(device)
+                model.optimizer.zero_grad()
+                outputs = model(X_batch)
+                loss = model.criterion(outputs, y_batch)
+                loss.backward()
+                if ditto:
+                    self.ditto_train(model)
+                model.optimizer.step()
+                running_loss += loss.item()
+        return running_loss
+
+    def fit(self, model, device, train_config, ditto=False):
+        epochs=model.epochs
+        model.to(device)  # move model to GPU if available
+        model.criterion = torch.nn.BCELoss().to(device)
+        model.optimizer = torch.optim.Adam(model.parameters(), lr=model.lr)
+        if train_config["dp"] and train_config["dp_mode"] == "local" and ditto == False:
+            model, model.optimizer, dp_trainloader = self.fit_with_dp(model, train_config)
+            with BatchMemoryManager(
+                data_loader=dp_trainloader,
+                max_physical_batch_size=train_config["dp_max_physical_batch_size"],
+                optimizer=model.optimizer
+            ) as memory_safe_data_loader:
+                running_loss = self.train(model, memory_safe_data_loader, device, epochs, ditto)
+        else:
+            running_loss = self.train(model, self.trainloader, device, epochs, ditto)
+        avg_trainloss = running_loss / (epochs * len(self.trainloader))
+        return avg_trainloss
+
 class AdultClient(Client):
     def __init__(
             self, 
@@ -126,7 +210,7 @@ class AdultClient(Client):
             self.ditto_model = None
         super().__init__(self.model, self.ditto_model, partition_id, seed, is_malicious)
 
-    def load_data(self):
+    def load_data(self, output_dir):
         self.trainloader, self.testloader = adult.load_data(
             partition_id=self.partition_id, 
             num_partitions=self.model.num_partitions, 
@@ -135,7 +219,8 @@ class AdultClient(Client):
             sensitive_feature=self.model.sensitive_feature,
             sensitive_value=self.model.sensitive_value,
             skew=self.model.skew,
-            seed=self.seed
+            seed=self.seed,
+            output_directory=output_dir
             )
 
     def train(self, model: Net, trainloader, device, epochs, ditto):
@@ -143,9 +228,11 @@ class AdultClient(Client):
         model.train()
         for _ in range(epochs):
             for X_batch, y_batch in trainloader:
+                X_batch = X_batch.to(device)
+                y_batch = y_batch.to(device)
                 model.optimizer.zero_grad()
-                outputs = model(X_batch).to(device)
-                loss = model.criterion(outputs, y_batch).to(device)
+                outputs = model(X_batch)
+                loss = model.criterion(outputs, y_batch)
                 loss.backward()
                 if ditto:
                     self.ditto_train(model)
@@ -250,8 +337,14 @@ def get_functions(dataset, train=True):
             return adult.train, adult.load_data
         else:
             return adult.test, adult.load_data
+
+    elif str.lower(dataset) == 'compas':
+        if train:
+            return compas.train, compas.load_data
+        else:
+            return compas.test, compas.load_data
         
-def get_client(dataset) -> Client:
+def get_client(dataset) -> AdultClient | CompasClient:
     if str.lower(dataset) == 'mnist':
         return MnistClient
     
@@ -263,3 +356,6 @@ def get_client(dataset) -> Client:
 
     elif str.lower(dataset) == 'adult':
         return AdultClient
+
+    elif str.lower(dataset) == 'compas':
+        return CompasClient

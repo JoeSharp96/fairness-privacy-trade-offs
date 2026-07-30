@@ -8,6 +8,7 @@ import source.models.mnist as mnist
 import source.models.fashion_mnist as fashion_mnist
 import source.models.femnist as femnist
 import source.models.adult as adult
+import source.models.compas as compas
 
 def get_fl_strategy(run_config):
     """Returns FL strategy and training config"""
@@ -64,7 +65,7 @@ def get_dp_strategy(strategy, run_config, attributes, train_config):
         noise_multiplier = get_noise_multiplier(
             target_epsilon=run_config["epsilon"],
             target_delta=run_config["delta"],
-            sample_rate=run_config["fraction-train"],
+            sample_rate=0.4,
             steps=run_config["num-server-rounds"],
         )
     
@@ -74,7 +75,7 @@ def get_dp_strategy(strategy, run_config, attributes, train_config):
             return CustomDifferentialPrivacyFixedClipping(
                 strategy=strategy,
                 noise_multiplier=noise_multiplier,
-                num_sampled_clients=run_config["min-available-nodes"] * run_config["fraction-train"],
+                num_sampled_clients=2,
                 clipping_norm=run_config["max-grad-norm"]
                 ), train_config
         
@@ -102,10 +103,12 @@ def get_dp_strategy(strategy, run_config, attributes, train_config):
         
     elif run_config["clipping-mode"] == "bounded":
         if run_config["dp-mode"] == "server":
+            num_sampled_clients = run_config["min-available-nodes"] * run_config["fraction-train"]
+            num_sampled_clients = num_sampled_clients if num_sampled_clients >= 2 else 2
             return DifferentialPrivacyServerSideBoundedClipping(
                 strategy=strategy,
                 noise_multiplier=noise_multiplier,
-                num_sampled_clients=run_config["min-available-nodes"] * run_config["fraction-train"],
+                num_sampled_clients=2,
                 min_bound=run_config["clipping-lower-bound"]
                 )
         
@@ -146,3 +149,5 @@ def get_functions(dataset):
         return femnist.test, femnist.load_centralized_dataset
     if str.lower(dataset) == 'adult':
         return adult.test, adult.load_centralized_dataset
+    if str.lower(dataset) == 'compas':
+        return compas.test, compas.load_centralized_dataset

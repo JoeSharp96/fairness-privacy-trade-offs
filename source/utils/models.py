@@ -3,6 +3,7 @@ import source.models.mnist as mnist
 import source.models.fashion_mnist as fashion_mnist
 import source.models.femnist as femnist
 import source.models.adult as adult
+import source.models.compas as compas
 
 # Create a base class for Client
 # Add all basic methods
@@ -17,3 +18,5 @@ def get_model(dataset) -> nn.Module:
         return femnist.Femnist
     elif str.lower(dataset) == 'adult':
         return adult.Adult
+    elif str.lower(dataset) == 'compas':
+        return compas.Compas

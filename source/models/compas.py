@@ -51,7 +51,7 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 # Epochs =      ?
 
 
-class Adult(Net):
+class Compas(Net):
 
     def __init__(
             self, 
@@ -66,7 +66,7 @@ class Adult(Net):
             skew: float,
             ditto = False, 
             input_dim: int = 14):
-        super(Adult, self).__init__(
+        super(Compas, self).__init__(
             lr=lr, 
             epochs=epochs, 
             batch_size=batch_size, 
@@ -78,9 +78,9 @@ class Adult(Net):
             skew=skew, 
             ditto=ditto
             )
-        self.layer1 = nn.Linear(input_dim, 128)
-        self.layer2 = nn.Linear(128, 64)
-        self.output = nn.Linear(64, 1)
+        self.layer1 = nn.Linear(input_dim, 32)
+        self.layer2 = nn.Linear(32, 16)
+        self.output = nn.Linear(16, 1)
         self.relu = nn.ReLU()
         self.sigmoid = nn.Sigmoid()
 
@@ -109,8 +109,6 @@ class Adult(Net):
             mask = (x_sensitive_feature == value)
             y_true_group = y_true[mask]
             y_pred_group = y_pred[mask]
-            print(len(y_pred_group))
-            print(len(y_true_group))
             # Demographic Parity
             ppr = np.mean(y_pred_group == 1)
 
@@ -167,7 +165,7 @@ class Adult(Net):
                 correct += (predicted == y_batch).sum().item()
                 y_true.append(y_batch.flatten().float())
                 y_pred.append(predicted.flatten().float())
-                x_sensitive_feature.append(X_batch[:, 9].flatten())
+                x_sensitive_feature.append(X_batch[:, 8].flatten())
         accuracy = correct / total
         loss = loss / len(testloader)
         if globaltest:
@@ -180,30 +178,13 @@ class Adult(Net):
 
 fds = None  # Cache FederatedDataset
 
-def skew_and_split(sensitive_feature: str, sensitive_value: str, _skew: float = 0.3, seed: int = 42, global_train: bool = False):
-    def skew(dataset_dict):
-        split = Divider(
-            divide_config={"train":0.8,"test":0.2},
-            divide_split="train"
-        )
-        dataset_dict_split = split(dataset_dict)
-        if global_train:
-            dataset = dataset_dict_split["test"]
-            minority_dataset = dataset.filter(lambda x: str(x[sensitive_feature]) == sensitive_value)
-            majority_dataset = dataset.filter(lambda x: str(x[sensitive_feature]) != sensitive_value)
-            total_majority = len(majority_dataset)
-            total_minority = len(minority_dataset)
-            print(f"""Total Test data: {total_majority + total_minority}
-            Minority = {total_minority} | {(total_minority / (total_minority+total_majority))*100}%
-            Majority = {total_majority} | {(total_majority / (total_minority+total_majority))*100}%""")
-            dataset_dict_split.pop("train")
-            return dataset_dict_split
-        
-        # Convert HuggingFace dataset to pandas for preprocessing
-        dataset = dataset_dict_split["train"]
-        minority_dataset = dataset.filter(lambda x: str(x[sensitive_feature]) == sensitive_value)
-        majority_dataset = dataset.filter(lambda x: str(x[sensitive_feature]) != sensitive_value)
+def skew_and_split(sensitive_feature: str, sensitive_value: str|float, _skew: float = 0.3, seed: int = 42, global_train: bool = False):
 
+    def skew(dataset_dict):
+        # Convert HuggingFace dataset to pandas for preprocessing
+        dataset = dataset_dict["train"]
+        minority_dataset = dataset.filter(lambda x: x[sensitive_feature] == sensitive_value)
+        majority_dataset = dataset.filter(lambda x: x[sensitive_feature] != sensitive_value)
         total_majority = len(majority_dataset)
         required_minority = math.floor((total_majority * _skew) / (1 - _skew))
         minority_dataset = minority_dataset.shuffle(seed=seed).select(range(required_minority))
@@ -213,9 +194,8 @@ def skew_and_split(sensitive_feature: str, sensitive_value: str, _skew: float = 
         Majority = {total_majority} | {(total_majority / (total_minority+total_majority))*100}%""")
         
         skewed_dataset = concatenate_datasets([majority_dataset, minority_dataset]).shuffle(seed=seed)
-        dataset_dict_split["train"] = skewed_dataset
-        dataset_dict_split.pop("test")
-        return dataset_dict_split
+        dataset_dict["train"] = skewed_dataset
+        return dataset_dict
     return skew
 
 def save_partitions(sensitive_feature: str, sensitive_value: str, fds: FederatedDataset, seed: int, output_directory: str, num_partitions: int):
@@ -230,9 +210,11 @@ def save_partitions(sensitive_feature: str, sensitive_value: str, fds: Federated
         df2 = pd.DataFrame(data={"min":minority_count, "maj":majority_count})
         df2.to_csv(f"output/{output_directory}/{seed}/data_sample.csv", mode="w", header=True, index=False)
 
+
+
 # Add the partition_by variable. To run this on two datasets it will have to be variable.
 def load_data(partition_id: int, num_partitions: int, batch_size: int, alpha: float, sensitive_feature: str, sensitive_value: str, skew: int, seed: int, output_directory: str):
-    """Load partition Adult data."""
+    """Load partition compas data."""
     # Only initialize `FederatedDataset` once
     global fds
     if fds is None:
@@ -245,7 +227,7 @@ def load_data(partition_id: int, num_partitions: int, batch_size: int, alpha: fl
         preprocessor = skew_and_split(sensitive_feature, sensitive_value, skew, seed)    
         # Other examples online use NaturalPartitioner. Might be worth looking into
         fds = FederatedDataset(
-            dataset="scikit-learn/adult-census-income",
+            dataset="imodels/compas-recidivism",
             partitioners={"train": partitioner},
             preprocessor=preprocessor,
             seed=seed
@@ -256,18 +238,14 @@ def load_data(partition_id: int, num_partitions: int, batch_size: int, alpha: fl
 
     dataset.dropna(inplace=True)
 
-    categorical_cols = dataset.select_dtypes(include=["object"]).columns
-    ordinal_encoder = OrdinalEncoder()
-    dataset[categorical_cols] = ordinal_encoder.fit_transform(dataset[categorical_cols])
-
-    X = dataset.drop("income", axis=1)
-    y = dataset["income"]
+    X = dataset.drop(["is_recid","age","race:African-American", "race:Asian", "race:Hispanic", "race:Native_American", "race:Other"], axis=1)
+    y = dataset["is_recid"]
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=seed
     )
 
-    numeric_features = X.select_dtypes(include=["float64", "int64"]).columns
+    numeric_features = X.select_dtypes(include=["float64", "int64", "bool"]).columns
     numeric_transformer = Pipeline(steps=[("scaler", StandardScaler())])
 
     preprocessor = ColumnTransformer(
@@ -299,26 +277,16 @@ def load_centralized_dataset(num_partitions: int, batch_size: int, alpha: float,
             alpha=alpha,
             seed=seed
         )
-        preprocessor = Divider(
-            divide_config={"train": {"train":0.8, "test":0.2}}
-        )
-        preprocessor = skew_and_split(sensitive_feature,sensitive_value,skew,seed,global_train=True)
         fds = FederatedDataset(
-            dataset="scikit-learn/adult-census-income",
-            partitioners={"train":partitioner},
-            preprocessor=preprocessor,
+            dataset="imodels/compas-recidivism",
+            partitioners={"test": partitioner},
             seed=seed
         )
     dataset = fds.load_split("test").with_format("pandas")[:]
-    print(dataset.count(axis=1))
     dataset.dropna(inplace=True)
 
-    categorical_cols = dataset.select_dtypes(include=["object"]).columns
-    ordinal_encoder = OrdinalEncoder()
-    dataset[categorical_cols] = ordinal_encoder.fit_transform(dataset[categorical_cols])
-
-    X = dataset.drop("income", axis=1)
-    y = dataset["income"]
+    X = dataset.drop(["is_recid","age","race:African-American", "race:Asian", "race:Hispanic", "race:Native_American", "race:Other"], axis=1)
+    y = dataset["is_recid"]
 
     numeric_features = X.select_dtypes(include=["float64", "int64"]).columns
     numeric_transformer = Pipeline(steps=[("scaler", StandardScaler())])
@@ -333,5 +301,6 @@ def load_centralized_dataset(num_partitions: int, batch_size: int, alpha: float,
 
     test_dataset = TensorDataset(X_test_tensor, y_test_tensor)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
 
     return test_loader

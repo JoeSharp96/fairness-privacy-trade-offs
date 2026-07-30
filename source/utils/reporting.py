@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 # Save the run_config.
 def output_dir(config):
     """Create directory for output graph and data"""
-    path = Path.cwd() / f"output/{config['out-dir']}/{config['skew']}"
+    path = Path.cwd() / f"output/{config['out-dir']}/{config['seed']}/{config['skew']}"
     if not os.path.exists(path):
         print("hello")
         path.mkdir(parents=True, exist_ok=False)

@@ -10,20 +10,22 @@ FRACTION_EVALUATE=0.2
 FRACTION_TRAIN=0.2
 FRACTION_MALICIOUS=0.0
 SAVE_MODEL=true
-DATASET="adult"
+DATASET="compas"
 DISTRIBUTION="non-iid"
-BATCH_SIZE=32
-MIN_PARTITION_SIZE=32
-ALPHA=(0.5 1.0 10.0 100.0)
+BATCH_SIZE=16
+MIN_PARTITION_SIZE=16
+ALPHA=(0.5)
 EPOCHS=1
-LEARNING_RATE=0.005
+LEARNING_RATE=0.05
 DITTO=false
 DP=false
 NODES=5
-SKEW=(0.05 0.1 0.2 0.3)
-SENSITIVE_FEATURE='sex'
-SENSITIVE_VALUE='Female'
-SEED=(42 1996 24 33 258 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15)
+# Due to a low amount of data in this particular dataset, I can only drop to 0.05 skew and 0.5 alpha.
+SKEW=(0.05)
+SENSITIVE_FEATURE='race:Caucasian'
+SENSITIVE_VALUE=1.0
+# 1996 24 33 258 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+SEED=(42)
 
 # Tracking
 TOTAL_RUNS=$((${#SEED[@]}*${#SKEW[@]}*${#ALPHA[@]}))
@@ -47,7 +49,7 @@ toml set --toml-path pyproject.toml tool.flwr.app.config.dataset ${DATASET}
 toml set --toml-path pyproject.toml --to-int tool.flwr.app.config.batch-size ${BATCH_SIZE}
 toml set --toml-path pyproject.toml --to-int tool.flwr.app.config.local-epochs ${EPOCHS}
 toml set --toml-path pyproject.toml tool.flwr.app.config.sensitive-feature ${SENSITIVE_FEATURE}
-toml set --toml-path pyproject.toml tool.flwr.app.config.sensitive-value ${SENSITIVE_VALUE}
+toml set --toml-path pyproject.toml --to-float tool.flwr.app.config.sensitive-value ${SENSITIVE_VALUE}
 toml set --toml-path pyproject.toml --to-bool tool.flwr.app.config.ditto ${DITTO}
 toml set --toml-path pyproject.toml --to-bool tool.flwr.app.config.dp-enabled ${DP}
 toml set --toml-path pyproject.toml --to-float tool.flwr.app.config.learning-rate ${LEARNING_RATE}
@@ -73,4 +75,4 @@ for seed in "${SEED[@]}"; do
     done
 done
 
-python reporting.py "$OUTPUT_PATH$DIR_NAME" ${NUM_SERVER_ROUNDS} ${DP} "${SKEW[@]}" "${SEED[@]}" "${ALPHA[@]}"
+python reporting.py "$OUTPUT_PATH$DIR_NAME" ${NUM_SERVER_ROUNDS} ${DP} "${SKEW}" "${SEED}" "${ALPHA}"

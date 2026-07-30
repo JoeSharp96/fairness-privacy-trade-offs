@@ -54,7 +54,7 @@ def train(msg: Message, context: Context):
     min_partition_size = context.run_config["min-partition-size"]
     alpha = context.run_config["alpha"]
     distribution = context.run_config["distribution"]
-    client.load_data()
+    client.load_data(context.run_config["out-dir"])
 
     lr = context.run_config['learning-rate']
     epochs = context.run_config["local-epochs"]
@@ -118,7 +118,7 @@ def evaluate(msg: Message, context: Context):
 
 
     # Load the data
-    client.load_data()
+    client.load_data(context.run_config["out-dir"])
 
     # Call the evaluation function
     eval_loss, eval_acc = client.model.test(
