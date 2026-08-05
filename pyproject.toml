@@ -29,16 +29,12 @@ clientapp = "source.client_app:app"
 
 [tool.flwr.app.config]
 # Server Params
-num-server-rounds = 50
+num-server-rounds = 5
 min-available-nodes = 5
 fraction-evaluate = 0.2
 fraction-train = 0.2
 save-model = true
-out-dir = "adult_non_dp.sh_1785424408"
-strategy = "fedavg"
-
-# Threat Parameters
-fraction-malicious = 0.0
+out-dir = "adult_non_dp.sh_1785922266"
 
 # Data settings
 dataset = "adult"
@@ -47,19 +43,11 @@ batch-size = 32
 num-partitions = 5
 min-partition-size = 16
 alpha = 10.0
-skew = 0.05
+skew = 0.3
+target-feature = "income"
 sensitive-feature = "sex"
 sensitive-value = "Female"
-seed = 42
-
-# Q-FedAvg Params
-q = 0.001
-
-# Ditto Parameters
-ditto = false
-ditto-lr = 0.001
-ditto-local-epochs = 1
-ditto-lambda = 0.01
+seed = 14
 
 # Training Parameters
 local-epochs = 1
@@ -67,12 +55,9 @@ learning-rate = 0.005
 
 # DP Settings
 dp-enabled = false
-dp-mode = "local"
 epsilon = 5.0
 delta = 1e-5
 max-grad-norm = 2.0
 max-physical-batch-size = 16
-clipping-mode = "flat"
-clipping-lower-bound = 0.1
 
 

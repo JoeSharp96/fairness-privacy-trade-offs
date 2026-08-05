@@ -1,24 +1,4 @@
-import random
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from flwr_datasets import FederatedDataset
-from flwr_datasets.partitioner import NaturalIdPartitioner
-from flwr_datasets.preprocessor import Divider
-from source.utils.datasets import get_partitioner
-from torch.utils.data import DataLoader
-from torchvision.transforms import (
-    Compose,
-    Normalize,
-    ToTensor,
-)
-from opacus.utils.batch_memory_manager import BatchMemoryManager
-from opacus import PrivacyEngine
-from sklearn.compose import ColumnTransformer
-from sklearn.model_selection import train_test_split
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OrdinalEncoder, StandardScaler
-from torch.utils.data import DataLoader, TensorDataset
 
 class Net(nn.Module):
     def __init__(
@@ -31,8 +11,7 @@ class Net(nn.Module):
             alpha: float,
             sensitive_feature: str,
             sensitive_value: str,
-            skew: float = 0.3,
-            ditto: bool = False
+            skew: float = 0.3
             ):
         super(Net, self).__init__()
         self.lr = lr
@@ -44,8 +23,5 @@ class Net(nn.Module):
         self.sensitive_feature = sensitive_feature
         self.sensitive_value = sensitive_value
         self.skew = skew
-        self.ditto = ditto
         self.optimizer = None
         self.criterion = None
-        self.lmbda = None
-        self.global_params = None

@@ -9,9 +9,9 @@ import matplotlib.pyplot as plt
 PATH = sys.argv[1]
 ROUNDS = int(sys.argv[2])
 DP = bool(sys.argv[3])
-SKEW = ["0.05", "0.1", "0.2", "0.3"]
-SEEDS = [42, 1996, 24, 33, 258, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-ALPHA = ["0.5", "1.0", "10.0", "100.0"]
+SKEW = ["0.2", "0.3"]
+SEEDS = [14, 15]
+ALPHA = ["10.0", "100.0"]
 
 
 def tune_fedavg():
@@ -93,7 +93,7 @@ def aggregate_results():
             df.to_csv(f"{PATH}/{seed}/{metric}.csv")
 
 def mean_results():
-    for metric in ("acc","dp","eo"):
+    for metric in ("acc","dp","eod","eop", "ea"):
         df_list = []
         for seed in SEEDS:
             df = pd.read_csv(f"{PATH}/{seed}/{metric}.csv", index_col=0)
@@ -127,4 +127,4 @@ def plot_results():
 
 aggregate_results()
 mean_results()
-plot_results()
+#plot_results()
