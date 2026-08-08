@@ -27,7 +27,7 @@ Replace ```num-gpus``` with the a float value representing the percentage of the
 
 Replace ```num-cpus``` with the an integer value representing the number of CPU cores each client should use. 
 
-The total actors that run in parallel is equal to min(SYS_CPUS/num_cpus, SYS_GPUS/num_gpus).
+The total actors that run in parallel is equal to $min(SYS_CPUS \over num_cpus, SYS_GPUS \over num_gpus)$.
 
 By defualt, the simulation config is set to:
 ```bash
