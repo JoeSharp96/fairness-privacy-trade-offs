@@ -82,7 +82,6 @@ class ServerConfig:
         dataset[categorical_cols] = ordinal_encoder.fit_transform(dataset[categorical_cols])
 
         self.drop_columns.append(self.target_feature)
-        print(dataset.columns)
         X = dataset.drop(self.drop_columns, axis=1)
         y = dataset[self.target_feature]
         self.sensitive_col_index = X.columns.get_loc(self.model.sensitive_feature)
@@ -101,7 +100,7 @@ class ServerConfig:
         test_loader = DataLoader(test_dataset, batch_size=self.model.batch_size, shuffle=False)
         self.testloader = test_loader
 
-    def group_fairness_metrics(self, y_true: np.ndarray, y_pred: np.ndarray, x_sensitive_feature: np.ndarray)->tuple[float,float,float,float]:
+    def group_fairness_metrics(self, y_true: np.ndarray, y_pred: np.ndarray, x_sensitive_feature: np.ndarray)->dict[str:float]:
         """Returns fairness metrics from training. Metrics returned are demographic parity difference, equal opportunity distance, equalised odds difference, minority acc, majority acc."""
         # Gets the unique groups. As the data was originally a tensor, it works out the counts to determine the minority and majority groups.
         unique_groups, counts = np.unique(x_sensitive_feature, return_counts=True)
@@ -136,13 +135,12 @@ class ServerConfig:
 
             # Get accuracy of groups
             acc = accuracy_score(y_true_group, y_pred_group)
-            metrics[value] = {'PPR': ppr, 'TPR': tpr, 'FPR': fpr, 'ACC': acc}
+            metrics[value] = {'PPR': ppr, 'TPR': tpr, 'FPR': fpr, 'ACC': acc, 'CM':{'tn':int(tn), 'fp':int(fp), 'fn':int(fn), 'tp':int(tp)}}
 
         group_ids = list(metrics.keys())
         g1, g2 = group_ids[0], group_ids[1]
         print(f'=== Group Metrics ===')
         for key in metrics.keys():
-            print(metrics)
             print(f"Group {key}: PPR = {metrics[key]['PPR']:.3f}, TPR = {metrics[key]['TPR']:.3f}, FPR = {metrics[key]['FPR']:.3f}, ACC = {metrics[key]['ACC']:.3f}")
         print("=== Fairness Violations ===")
         print(f"Demographic Parity: {abs(metrics[g1]['PPR']-metrics[g2]['PPR']):.3f}")
@@ -155,9 +153,31 @@ class ServerConfig:
         equalised_accuracy = float(abs(metrics[g1]['ACC']-metrics[g2]['ACC']))
         minority_acc = float(metrics[0.]['ACC'])
         majority_acc = float(metrics[1.]['ACC'])
-        return demographic_parity, equalised_odds, equal_opportunity, equalised_accuracy, minority_acc, majority_acc
 
-    def test(self, device: torch.device)->tuple[float, float, float, float, float, float] | tuple[float, float]:
+        # Metrics are collected in a dict. The dict is returned in a MetricRecord to the server. A limitation of the MetricRecord object type is that it doesn't accept nested dicts.
+        fairness_metrics = {
+            "demographic_parity": demographic_parity, 
+            "equalised_odds": equalised_odds, 
+            "equal_opportunity": equal_opportunity,
+            "equalised_accuracy": equalised_accuracy, 
+            "min_accuracy": minority_acc, 
+            "maj_accuracy": majority_acc,
+            "min_tpr": metrics[0.]['TPR'],
+            "min_fpr": metrics[0.]['FPR'],
+            "min_tp": metrics[0.]['CM']['tp'],
+            "min_fp": metrics[0.]['CM']['fp'],
+            "min_tn": metrics[0.]['CM']['tn'],
+            "min_fn": metrics[0.]['CM']['fn'],
+            "maj_tpr": metrics[1.]['TPR'],
+            "maj_fpr": metrics[1.]['FPR'],
+            "maj_tp": metrics[1.]['CM']['tp'],
+            "maj_fp": metrics[1.]['CM']['fp'],
+            "maj_tn": metrics[1.]['CM']['tn'],
+            "maj_fn": metrics[1.]['CM']['fn'],
+            }
+        return fairness_metrics
+
+    def test(self, device: torch.device)->dict[str:float]:
         """Validate the model on the test set."""
         self.model.to(device)
         criterion = torch.nn.BCELoss()
@@ -188,5 +208,7 @@ class ServerConfig:
         y_true = torch.cat(y_true, dim=0).cpu()
         y_pred = torch.cat(y_pred, dim=0).cpu()
         x_sensitive_feature = torch.cat(x_sensitive_feature, dim=0).cpu()
-        dp, eod, eop, ea, min_acc, maj_acc = self.group_fairness_metrics(y_true.numpy(), y_pred.numpy(), x_sensitive_feature.numpy())
-        return loss, accuracy, dp, eod, eop, ea, min_acc, maj_acc
+        metrics = self.group_fairness_metrics(y_true.numpy(), y_pred.numpy(), x_sensitive_feature.numpy())
+        metrics["eval_acc"] = accuracy
+        metrics["eval_loss"] = loss
+        return metrics

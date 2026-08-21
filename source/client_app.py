@@ -1,6 +1,7 @@
 """Flower Client"""
 
 import torch
+import gc
 from flwr.app import ArrayRecord, Context, Message, MetricRecord, RecordDict
 from flwr.clientapp import ClientApp
 from source.utils.client import Client
@@ -15,8 +16,6 @@ def train(msg: Message, context: Context):
     """Train the model on local data.
     Return local model paramerters and training loss."""
     # Load the model and initialize it with the received weights
-    # Loads dataset model. Need to find a better way of doing this as it's pretty inefficient. Gets called every round for every client.
-    # Issue is, each client app is a unqiue instance, each round generates a new set
     client = Client(
         partition_id=context.node_config["partition-id"],
         lr=context.run_config['learning-rate'],
@@ -32,12 +31,16 @@ def train(msg: Message, context: Context):
         target_feature=context.run_config["target-feature"],
         dataset=context.run_config["dataset"]
     )
+    # Load weights to the client model
     client.model.load_state_dict(msg.content["arrays"].to_torch_state_dict())
+
+    # Move model to GPU if applicable.
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     client.model.to(device)
 
-    # Load federated dataset partition
+    # Load federated dataset partition. If this is the first training round, the client will save a copy of the data sample.
     client.load_data(context.run_config["out-dir"])
+
     # Train model on local dataset
     train_loss = client.fit(device, msg.content["config"])
 
@@ -50,6 +53,11 @@ def train(msg: Message, context: Context):
     metric_record = MetricRecord(metrics)
 
     content = RecordDict({"arrays": model_record, "metrics": metric_record})
+    # Client's are stateless and created each round. However, some issues with memory leakage have been occuring. At the end of each round, client is delete and cleared.
+    del client
+    gc.collect()
+
+    # Return metrics and updated weights
     return Message(content=content, reply_to=msg)
 
 
@@ -92,4 +100,6 @@ def evaluate(msg: Message, context: Context):
 
     metric_record = MetricRecord(metrics)
     content = RecordDict({"metrics": metric_record})
+    del client
+    gc.collect()
     return Message(content=content, reply_to=msg)

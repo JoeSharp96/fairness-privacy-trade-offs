@@ -5,126 +5,179 @@ import json
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from pandas import DataFrame
+from sklearn.metrics import ConfusionMatrixDisplay
 
 PATH = sys.argv[1]
 ROUNDS = int(sys.argv[2])
 DP = bool(sys.argv[3])
-SKEW = ["0.2", "0.3"]
-SEEDS = [14, 15]
-ALPHA = ["10.0", "100.0"]
+SKEW = ["0.05", "0.1", "0.2", "0.3"]
+SEEDS = [1,2,3,4,5,6,7,8,9,10]
+ALPHA = ["0.2","0.5","1.0","10.0","500.0"]
+YLABELS = {"server_eval_acc": "Acc", "server_demographic_parity": "STD", "server_equalised_odds": "EOD", "server_equal_opportunity": "EOP", "server_equalised_accuracy": "EA", "server_maj_accuracy": "Maj Acc", "server_min_accuracy": "Min Acc"}
 
-
-def tune_fedavg():
+def aggregate_results()->None:
+    directories = os.listdir(PATH)
+    for dir in directories:
+        for seed in SEEDS:
+            metrics ={}
+            for skew in SKEW:
+                with open(f"{PATH}/{dir}/{seed}/{skew}/results.json") as fp:
+                    data = json.load(fp)
+                for metric in data['final_metrics'].keys():
+                    if metric not in metrics:
+                        metrics[metric] = {}
+                    results = data['final_metrics'][metric].values()
+                    metrics[metric][skew] = results
+            for metric in metrics.keys():
+                df = pd.DataFrame.from_dict(metrics[metric], orient='columns')
+                df['alpha'] = ALPHA
+                df.set_index(['alpha'], inplace=True)
+                df.to_csv(f"{PATH}/{dir}/{seed}/{metric}.csv")
     return
 
-def tune_qfedavg():
-    """Saves the best performing hyperparameters"""
-
-def plot_accuracy_with_dp():
-    """"""
-    plt.figure(figsize=(5,5))
+def mean_results()->None:
     for dir in os.listdir(PATH):
-        print(dir)
-        with open(f"{PATH}/{dir}/results.json", "r") as jsonfile:
-            data = json.load(jsonfile)
-            df = pd.DataFrame.from_dict(data["round_metrics"], orient="index")
-        
-        with open(f"{PATH}/{dir}/run_config.json","r") as jsonfile:
-            config = json.load(jsonfile)
-
-        epochs = config['local-epochs']
-        if config['dp-enabled']:
-            epsilon = config['epsilon']
-            text = f"Sever rounds = {ROUNDS}\nLocal epochs = {epochs}\nε = {epsilon}"
-        plt.plot(df.index, df['eval_server_acc'], label=config['clipping-mode'])  
-    plt.ylim(0, 1)
-    plt.xlabel('Round')
-    plt.ylabel('Accuracy')
-    plt.title('Local DP Accuracy')
-    plt.text(0,0.85,text)
-    plt.grid(True)
-    plt.legend(title="Clipping Method")
-    plt.savefig(f"{PATH}/eval_acc.jpg")
+        for metric in ("server_eval_acc","server_demographic_parity","server_equalised_odds","server_equal_opportunity", "server_equalised_accuracy",'server_maj_accuracy', 'server_min_accuracy'):
+            df_list = []
+            for seed in SEEDS:
+                df = pd.read_csv(f"{PATH}/{dir}/{seed}/{metric}.csv", index_col=0)
+                df_list.append(df)
+            mean_df = pd.concat(df_list).groupby(level=0).mean()
+            std_df = pd.concat(df_list).groupby(level=0).std()
+            mean_df.to_csv(f"{PATH}/{dir}/{metric}_mean.csv")
+            std_df.to_csv(f"{PATH}/{dir}/{metric}_std.csv")
     return
 
-def plot_accuracy():
-    """Creates matplotlib graphs of results and saves them as JPG files"""
-    plt.figure(figsize=(5,5))
-    for dir in os.listdir(PATH):
-        print(dir)
-        with open(f"{PATH}/{dir}/results.json", "r") as jsonfile:
-            data = json.load(jsonfile)
-            df = pd.DataFrame.from_dict(data["round_metrics"], orient="index")
-        
-        with open(f"{PATH}/{dir}/run_config.json","r") as jsonfile:
-            config = json.load(jsonfile)
-
-        epochs = config['local-epochs']
-        if config['dp-enabled']:
-            epsilon = config['epsilon']
-            text = f"Sever rounds = {ROUNDS}\nLocal epochs = {epochs}\nε = {epsilon}"
-        else:
-            text = f"Sever rounds = {ROUNDS}\nLocal epochs = {epochs}\nNon-DP"
-        plt.plot(df.index, df['eval_server_acc'], label=config['clipping-mode'])  
-    plt.ylim(0, 1)
-    plt.xlabel('Round')
-    plt.ylabel('Accuracy')
-    plt.title('Local DP Accuracy')
-    plt.text(0,0.85,text)
-    plt.grid(True)
-    plt.legend(title="Clipping Method")
-    plt.savefig(f"{PATH}/eval_acc.jpg")
-
-def aggregate_results():
-    for seed in SEEDS:
-        metrics ={}
-        for skew in SKEW:
-            with open(f"{PATH}/{seed}/{skew}/results.json") as fp:
-                data = json.load(fp)
-            for metric in data['final_metrics'].keys():
-                if metric not in metrics:
-                    metrics[metric] = {}
-                results = data['final_metrics'][metric].values()
-                metrics[metric][skew] = results
-        for metric in metrics.keys():
-            df = pd.DataFrame.from_dict(metrics[metric], orient='columns')
-            df['alpha'] = ALPHA
-            df.set_index(['alpha'], inplace=True)
-            df.to_csv(f"{PATH}/{seed}/{metric}.csv")
-
-def mean_results():
-    for metric in ("acc","dp","eod","eop", "ea"):
+def median_results()->None:
+    for metric in ("server_demographic_parity","server_equalised_odds","server_equal_opportunity"):
         df_list = []
         for seed in SEEDS:
             df = pd.read_csv(f"{PATH}/{seed}/{metric}.csv", index_col=0)
             df_list.append(df)
-        mean_df = pd.concat(df_list).groupby(level=0).mean()
-        std_df = pd.concat(df_list).groupby(level=0).std()
-        mean_df.to_csv(f"{PATH}/{metric}_mean.csv")
-        std_df.to_csv(f"{PATH}/{metric}_std.csv")
+        median_df = pd.concat(df_list).groupby(level=0).median()
+        median_df.to_csv(f"{PATH}/{metric}_median.csv")
+    return
 
-def plot_results():
-    mean_list = []
-    std_list=[]
-    for metric in ("acc","dp","eo"):
-        mean_df = pd.read_csv(f"{PATH}/{metric}_mean.csv", index_col=0)
-        mean_list.append(mean_df)
-        std_df = pd.read_csv(f"{PATH}/{metric}_std.csv", index_col=0)
-        std_list.append(std_df)
-    fig, axs = plt.subplots(1,3, figsize=(16, 4))
-    fig.suptitle("Adult")
-    
-    for mean_df, std_df, metric, i in zip(mean_list, std_list, ["Accuracy", "Demographic Parity", "Equalised Odds"], range(3)):
-        for skew in SKEW:
-            axs[i].plot(ALPHA, mean_df[skew], label=skew)
-            axs[i].fill_between(ALPHA, mean_df[skew]-std_df[skew], mean_df[skew]+std_df[skew], alpha=0.5)
-        axs[i].set_title(metric)
-        axs[i].set_xlabel("\u03B1")
-        y_label = "Acc" if metric == "Accuracy" else "Difference"
-        axs[i].set_ylabel(y_label)
-        axs[i].legend(title="Minority Skew")
-    fig.savefig(f"{PATH}/eval_acc.jpg")
+def get_min_max_values(dataframes: list[DataFrame])->tuple[int,int]:
+    min_val = pd.concat(dataframes).groupby(level=0).min().min().min()
+    max_val = pd.concat(dataframes).groupby(level=0).max().max().max()
+    return min_val, max_val
 
-aggregate_results()
-mean_results()
-#plot_results()
+def get_plot_data(metrics: list)->dict:
+    directories = os.listdir(PATH)
+    plot_data = {metric:{"dir":{}} for metric in metrics}
+    for metric in metrics:
+        dfs = []
+        for dir in directories:
+            df = pd.read_csv(f"{PATH}/{dir}/{metric}_mean.csv", index_col=0, header=0)
+            dfs.append(df)
+            with open(f"{PATH}/{dir}/1/0.1/results.json", "r") as fp:
+                run_dict = json.load(fp)
+            if run_dict['run_config']['dp-enabled']:
+                label = str(run_dict['run_config']['epsilon'])
+            else:
+                label = "Non-DP"
+            plot = {
+                "df": df,
+                "label": label
+            }
+            plot_data[metric]['dir'][dir] = plot
+        min_value, max_value = get_min_max_values(dfs)
+        plot_data[metric]['plot_labels'] = {"ylabel": YLABELS[metric], "xlabel": "\u03B1", "ylim_min": min_value, "ylim_max": max_value}
+    return plot_data
+
+def plot_disparate_impact(plot_data: dict)->None:
+    keys = list(plot_data.keys())
+    index = [float(i) for i in ALPHA]
+    epsilon_values = [value for value in plot_data[keys[0]]['dir'].keys()]
+    epsilon_values = sorted(epsilon_values,reverse=True)
+    df = pd.DataFrame(index=index)
+    for key in keys:
+        for e in epsilon_values:
+            col_name = key + '_' + e
+            e_df = plot_data[key]['dir'][e]['df']
+            print(e_df['0.3'])
+            df[col_name] = e_df['0.3']
+    df.plot.bar()
+    plt.xlabel("\u03B1")
+    plt.ylabel("Accuracy")
+    plt.grid(lw=0.5)
+    plt.ylim(0.77, 0.95)
+    plt.savefig(f"{PATH}/non_dp/disparate_impact.png", dpi=300)
+    return
+
+def plot_accuracy(metrics: list)->None:
+    plot_data = get_plot_data(metrics)
+    skews = [SKEW[0], SKEW[-1]]
+    fig, axs = plt.subplots(len(metrics),len(skews), figsize=(5.0,4.4), layout="constrained")
+    for i, metric in enumerate(metrics):
+        for key in plot_data[metric]['dir'].keys():
+            data = plot_data[metric]['dir'][key]
+            for j, skew in enumerate(skews):
+                axs[i][j].plot(ALPHA, data['df'][skew], label=data['label'])
+                axs[i][j].set_title(f"{float(skew)*100}% Female", fontsize=7)
+                axs[i][j].set_xlabel(plot_data[metric]['plot_labels']['xlabel'], fontsize=6)
+                axs[i][j].set_ylabel(plot_data[metric]['plot_labels']['ylabel'], fontsize=6)
+                axs[i][j].grid(lw=0.5)
+                axs[i][j].set_ylim(plot_data[metric]['plot_labels']['ylim_min'] - 0.005, plot_data[metric]['plot_labels']['ylim_max'] + 0.005)
+    axs[0][0].legend(loc='best', fontsize=8, mode="expand")
+    fig.savefig(f"{PATH}/non_dp/dpvnondp.png", dpi=300)
+    plot_disparate_impact(plot_data)
+    return
+
+def plot_eod(metrics: list)->None:
+    plot_data = get_plot_data(metrics)
+    fig, axs = plt.subplots(len(metrics),len(SKEW), figsize=(10.0,2.2), layout="constrained")
+    for metric in metrics:
+        for key in plot_data[metric]['dir'].keys():
+            data = plot_data[metric]['dir'][key]
+            for i, skew in enumerate(SKEW):
+                axs[i].plot(ALPHA, data['df'][skew], label=data['label'])
+                axs[i].set_title(f"{float(skew)*100}% Female", fontsize=7)
+                axs[i].set_xlabel(plot_data[metric]['plot_labels']['xlabel'], fontsize=6)
+                axs[i].set_ylabel(plot_data[metric]['plot_labels']['ylabel'], fontsize=6)
+                axs[i].grid(lw=0.5)
+                axs[i].set_ylim(plot_data[metric]['plot_labels']['ylim_min'] - 0.005, plot_data[metric]['plot_labels']['ylim_max'] + 0.005)
+    axs[0].legend(loc='best', fontsize=8, mode="expand")
+    fig.savefig(f"{PATH}/non_dp/eod.png", dpi=300)
+    return
+
+def plot_std(metrics: list)->None:
+    plot_data = get_plot_data(metrics)
+    fig, axs = plt.subplots(len(metrics),len(SKEW), figsize=(10.0,2.2), layout="constrained")
+    for metric in metrics:
+        for key in plot_data[metric]['dir'].keys():
+            data = plot_data[metric]['dir'][key]
+            for i, skew in enumerate(SKEW):
+                axs[i].plot(ALPHA, data['df'][skew], label=data['label'])
+                axs[i].set_title(f"{float(skew)*100}% Female", fontsize=7)
+                axs[i].set_xlabel(plot_data[metric]['plot_labels']['xlabel'], fontsize=6)
+                axs[i].set_ylabel(plot_data[metric]['plot_labels']['ylabel'], fontsize=6)
+                axs[i].grid(lw=0.5)
+                axs[i].set_ylim(plot_data[metric]['plot_labels']['ylim_min'] - 0.005, plot_data[metric]['plot_labels']['ylim_max'] + 0.005)
+    axs[0].legend(loc='best', fontsize=8, mode="expand")
+    fig.savefig(f"{PATH}/non_dp/std.png", dpi=300)
+    return
+
+def plot_confusion_matrix()->None:
+    """Creates and saves the confusion matrix for each model"""
+    directories = os.listdir(PATH)
+    for dir in directories:
+        with open(f"{PATH}/{dir}/1/0.3/results.json", "r") as fp:
+            data = json.load(fp)
+        final_data = data["final_metrics"]
+        for alpha in [ALPHA[0],ALPHA[1],ALPHA[-1]]:
+            min_cm = np.array([[final_data["server_min_tn"][alpha],final_data["server_min_fp"][alpha]], [final_data["server_min_fn"][alpha],final_data["server_min_tp"][alpha]]])
+            maj_cm = np.array([[final_data["server_maj_tn"][alpha],final_data["server_maj_fp"][alpha]], [final_data["server_maj_fn"][alpha],final_data["server_maj_tp"][alpha]]])
+            total_cm = np.add(min_cm, maj_cm)
+            for cm, file in zip([min_cm, maj_cm, total_cm], ["min", "maj", "total"]):
+                disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["income < $50k","income >= $50k"])
+                disp.plot(cmap=plt.cm.Blues).figure_.savefig(f"{PATH}/non_dp/{file}_{dir}_{alpha}_0.3_cm.png")
+                plt.close()
+    return
+
+plot_accuracy(['server_maj_accuracy', 'server_min_accuracy'])
+#plot_std(['server_demographic_parity'])
+#plot_eod(['server_equalised_odds'])
+#plot_confusion_matrix()

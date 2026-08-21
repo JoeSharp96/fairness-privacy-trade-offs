@@ -12,7 +12,7 @@ dependencies = [
     "flwr-datasets[vision]>=0.6.0",
     "torch==2.8.0",
     "torchvision==0.23.0",
-    "opacus==1.6.0",
+    "opacus==1.6.0"
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -29,35 +29,35 @@ clientapp = "source.client_app:app"
 
 [tool.flwr.app.config]
 # Server Params
-num-server-rounds = 5
+num-server-rounds = 30
 min-available-nodes = 5
 fraction-evaluate = 0.2
 fraction-train = 0.2
 save-model = true
-out-dir = "adult_non_dp.sh_1785922266"
+out-dir = "adult_all.sh_1786371855"
 
 # Data settings
 dataset = "adult"
 distribution = "non-iid"
-batch-size = 32
+batch-size = 128
 num-partitions = 5
 min-partition-size = 16
-alpha = 10.0
+alpha = 500.0
 skew = 0.3
 target-feature = "income"
 sensitive-feature = "sex"
 sensitive-value = "Female"
-seed = 14
+seed = 10
 
 # Training Parameters
 local-epochs = 1
-learning-rate = 0.005
+learning-rate = 0.001
 
 # DP Settings
-dp-enabled = false
+dp-enabled = true
 epsilon = 5.0
-delta = 1e-5
-max-grad-norm = 2.0
-max-physical-batch-size = 16
+delta = 1e-05
+max-grad-norm = 1.0
+max-physical-batch-size = 32
 
 

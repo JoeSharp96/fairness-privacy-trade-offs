@@ -26,15 +26,7 @@ def output_dir(config: UserConfig) -> Path:
         with open(f"{path}/results.json","w",encoding="utf-8") as fp:
             results = {
                 "run_metrics":{},
-                "final_metrics":{
-                    "acc":{},
-                    "minority_acc":{},
-                    "majority_acc":{},
-                    "ea":{},
-                    "dp":{},
-                    "eod":{},
-                    "eop":{}
-                },
+                "final_metrics":{},
                 "run_config": config
                 }
             json.dump(results,fp)
@@ -52,19 +44,16 @@ def save_metrics(
         train_metrics = dict(result.train_metrics_clientapp.get(i,{}))
         eval_client_metrics = dict(result.evaluate_metrics_clientapp.get(i,{}))
         eval_server_metrics = dict(result.evaluate_metrics_serverapp.get(i,{}))
-        round_result = {
-            "train_loss": train_metrics["train_loss"],
-            "eval_client_loss": eval_client_metrics["eval_loss"],
-            "eval_client_acc": eval_client_metrics["eval_acc"],
-            "eval_server_loss": eval_server_metrics["loss"],
-            "eval_server_acc": eval_server_metrics["accuracy"],
-            "eval_server_min_acc": eval_server_metrics["minority_accuracy"],
-            "eval_server_maj_acc": eval_server_metrics["majority_accuracy"],
-            "equalised_accuracy": eval_server_metrics["equalised_accuracy"],
-            "demographic_parity": eval_server_metrics["demographic_parity"],
-            "equalised_odds": eval_server_metrics["equalised_odds"],
-            "equal_opportunity": eval_server_metrics["equal_opportunity"]
-        }
+        round_result = {}
+        for key, value in train_metrics.items():
+            round_result[key] = value
+
+        for key, value in eval_client_metrics.items():
+            round_result[f"client_{key}"] = value
+
+        for key, value in eval_server_metrics.items():
+            round_result[f"server_{key}"] = value
+
         results["round_metrics"][i] = round_result
 
     data={}
@@ -74,13 +63,11 @@ def save_metrics(
 
     with open(f"{save_path}/results.json", "w", encoding="utf-8") as fp:
         data["run_metrics"][alpha] = results
-        data["final_metrics"]["acc"][alpha] = results["round_metrics"][rounds]["eval_server_acc"]
-        data["final_metrics"]["minority_acc"][alpha] = results["round_metrics"][rounds]["eval_server_min_acc"]
-        data["final_metrics"]["majority_acc"][alpha] = results["round_metrics"][rounds]["eval_server_maj_acc"]
-        data["final_metrics"]["dp"][alpha] = results["round_metrics"][rounds]["demographic_parity"]
-        data["final_metrics"]["eod"][alpha] = results["round_metrics"][rounds]["equalised_odds"]
-        data["final_metrics"]["eop"][alpha] = results["round_metrics"][rounds]["equal_opportunity"]
-        data["final_metrics"]["ea"][alpha] = results["round_metrics"][rounds]["equalised_accuracy"]
+        for key, value in results["round_metrics"][rounds].items():
+            if key not in data["final_metrics"]:
+                data["final_metrics"][key] = {}
+            data["final_metrics"][key][alpha] = value
+
         json.dump(data, fp)
     
 
@@ -99,8 +86,8 @@ def save_graphs(save_path: Path, rounds: int, alpha: float) -> None:
         text = f"Sever rounds = {rounds}\nLocal epochs = {epochs}\nNon-DP"
 
     plt.figure(figsize=(5, 5))
-    plt.plot(df.index, df['eval_client_acc'], marker='o', color='b', label='Aggregate Client Accuracy')
-    plt.plot(df.index, df['eval_server_acc'], marker='x', color='r', label='Global Accuracy')
+    plt.plot(df.index, df['client_eval_acc'], marker='o', color='b', label='Aggregate Client Accuracy')
+    plt.plot(df.index, df['server_eval_acc'], marker='x', color='r', label='Global Accuracy')
     plt.ylim(0, 1)
     plt.xlabel('Round')
     plt.ylabel('Accuracy')
@@ -108,7 +95,7 @@ def save_graphs(save_path: Path, rounds: int, alpha: float) -> None:
     plt.text(0,0.85,text)
     plt.grid(True)
     plt.legend()
-    plt.savefig(f"{save_path}/eval_acc.jpg")
+    plt.savefig(f"{save_path}/{alpha}/eval_acc.jpg")
 
 def save_partitions(
         sensitive_feature: str,
@@ -123,7 +110,6 @@ def save_partitions(
     """For each client, count how many grouped attributes there are. Save all data to a .csv file"""
     path=get_path(output_directory, seed, skew)
     path = path.joinpath(f"{alpha}")
-    print(path)
     path.mkdir(parents=True, exist_ok=True)
     minority_count = []
     majority_count = []

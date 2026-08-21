@@ -4,23 +4,27 @@ DIR_NAME="$(basename "$0")_$(date +"%s")"
 # Tune Hyperparameters
 # FedAvg MNIST Non-IID Non-DP
 # CONSTANTS
-NUM_SERVER_ROUNDS=1
+NUM_SERVER_ROUNDS=5
 FRACTION_EVALUATE=0.2
 FRACTION_TRAIN=0.2
 SAVE_MODEL=true
 DATASET="adult"
-BATCH_SIZE=32
-MIN_PARTITION_SIZE=32
-ALPHA=(0.5)
+BATCH_SIZE=128
+MIN_PARTITION_SIZE=128
+MAX_PHYSICAL_BATCH_SIZE=32
+ALPHA=(0.5 1.0 10.0 500.0)
 EPOCHS=1
-LEARNING_RATE=0.005
-DP=false
+LEARNING_RATE=0.001
+DP=true
+EPSILON=5.0
+DELTA=1e-5
+MAX_GRAD_NORM=1.0
 NODES=5
-SKEW=(0.05)
+SKEW=(0.05 0.1 0.2 0.3)
 SENSITIVE_FEATURE='sex'
 SENSITIVE_VALUE='Female'
 TARGET_FEATURE='income'
-SEED=(1)
+SEED=(1 2)
 
 # Tracking
 TOTAL_RUNS=$((${#SEED[@]}*${#SKEW[@]}*${#ALPHA[@]}))
@@ -47,9 +51,13 @@ toml set --toml-path pyproject.toml --to-bool tool.flwr.app.config.dp-enabled ${
 toml set --toml-path pyproject.toml --to-float tool.flwr.app.config.learning-rate ${LEARNING_RATE}
 toml set --toml-path pyproject.toml tool.flwr.app.config.out-dir ${DIR_NAME}
 toml set --toml-path pyproject.toml tool.flwr.app.config.target-feature ${TARGET_FEATURE}
+toml set --toml-path pyproject.toml --to-float tool.flwr.app.config.epsilon ${EPSILON}
+toml set --toml-path pyproject.toml --to-float tool.flwr.app.config.delta ${DELTA}
+toml set --toml-path pyproject.toml --to-float tool.flwr.app.config.max-grad-norm ${MAX_GRAD_NORM}
+toml set --toml-path pyproject.toml --to-int tool.flwr.app.config.max-physical-batch-size ${MAX_PHYSICAL_BATCH_SIZE}
 
 # If using G4 GPU, set cpu to 12 and gpu to 0.25
-flwr federation simulation-config --num-supernodes ${NODES} --client-resources-num-cpus 4 --client-resources-num-gpus 0.0
+flwr federation simulation-config --num-supernodes ${NODES} --client-resources-num-cpus 3 --client-resources-num-gpus 0.0
 for seed in "${SEED[@]}"; do
     toml set --toml-path pyproject.toml --to-int tool.flwr.app.config.seed ${seed}
     if ${SAVE_MODEL}; then
@@ -67,4 +75,4 @@ for seed in "${SEED[@]}"; do
     done
 done
 
-#python reporting.py "$OUTPUT_PATH$DIR_NAME" ${NUM_SERVER_ROUNDS} ${DP} "${SKEW[@]}" "${SEED[@]}" "${ALPHA[@]}"
+python reporting.py "$OUTPUT_PATH$DIR_NAME" ${NUM_SERVER_ROUNDS} ${DP} "${SKEW[@]}" "${SEED[@]}" "${ALPHA[@]}"
