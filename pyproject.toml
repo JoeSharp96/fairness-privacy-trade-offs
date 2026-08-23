@@ -13,7 +13,8 @@ dependencies = [
     "torch>=2.8.0",
     "torchvision>=0.23.0",
     "opacus>=1.6.0",
-    "toml-cli"
+    "toml-cli",
+    "scikit-learn"
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -30,12 +31,12 @@ clientapp = "source.client_app:app"
 
 [tool.flwr.app.config]
 # Server Params
-num-server-rounds = 30
+num-server-rounds = 1
 min-available-nodes = 5
 fraction-evaluate = 0.2
 fraction-train = 0.2
 save-model = true
-out-dir = "adult_all.sh_1787505692"
+out-dir = "adult_non_dp.sh_1787517322"
 
 # Data settings
 dataset = "adult"
@@ -43,12 +44,12 @@ distribution = "non-iid"
 batch-size = 32
 num-partitions = 5
 min-partition-size = 16
-alpha = 0.2
-skew = 0.05
+alpha = 500.0
+skew = 0.3
 target-feature = "income"
 sensitive-feature = "sex"
 sensitive-value = "Female"
-seed = 1
+seed = 10
 
 # Training Parameters
 local-epochs = 1

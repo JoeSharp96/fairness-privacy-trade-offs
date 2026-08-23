@@ -109,4 +109,5 @@ for epsilon in "${EPSILON[@]}"; do
         mv output/${DIR_NAME}/${seed} output/${DIR_NAME}/${epsilon}
     done
 done
-python reporting.py "$OUTPUT_PATH$DIR_NAME" "${SKEW[@]}" "${SEED[@]}" "${ALPHA[@]}"
+mkdir output/${DIR_NAME}/results
+python reporting.py --path "$OUTPUT_PATH$DIR_NAME" --skews "${SKEW[@]}" --seeds "${SEED[@]}" --alphas "${ALPHA[@]}"
