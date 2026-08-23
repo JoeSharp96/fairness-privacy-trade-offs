@@ -9,14 +9,13 @@ from pandas import DataFrame
 from sklearn.metrics import ConfusionMatrixDisplay
 
 PATH = sys.argv[1]
-ROUNDS = int(sys.argv[2])
-DP = bool(sys.argv[3])
 SKEW = ["0.05", "0.1", "0.2", "0.3"]
 SEEDS = [1,2,3,4,5,6,7,8,9,10]
 ALPHA = ["0.2","0.5","1.0","10.0","500.0"]
 YLABELS = {"server_eval_acc": "Acc", "server_demographic_parity": "STD", "server_equalised_odds": "EOD", "server_equal_opportunity": "EOP", "server_equalised_accuracy": "EA", "server_maj_accuracy": "Maj Acc", "server_min_accuracy": "Min Acc"}
 
 def aggregate_results()->None:
+    """Aggregates results from output json file and stores data in a csv file. File is saved to the output folder"""
     directories = os.listdir(PATH)
     for dir in directories:
         for seed in SEEDS:
@@ -37,6 +36,7 @@ def aggregate_results()->None:
     return
 
 def mean_results()->None:
+    """Mean for each metric is calculated from each seed."""
     for dir in os.listdir(PATH):
         for metric in ("server_eval_acc","server_demographic_parity","server_equalised_odds","server_equal_opportunity", "server_equalised_accuracy",'server_maj_accuracy', 'server_min_accuracy'):
             df_list = []
@@ -60,11 +60,13 @@ def median_results()->None:
     return
 
 def get_min_max_values(dataframes: list[DataFrame])->tuple[int,int]:
+    """Gets the minimum and maximum value from to limit y axis in plot"""
     min_val = pd.concat(dataframes).groupby(level=0).min().min().min()
     max_val = pd.concat(dataframes).groupby(level=0).max().max().max()
     return min_val, max_val
 
 def get_plot_data(metrics: list)->dict:
+    """Gets the plot data from the mean value csv. Gets plot metadata from the results json."""
     directories = os.listdir(PATH)
     plot_data = {metric:{"dir":{}} for metric in metrics}
     for metric in metrics:
@@ -88,6 +90,7 @@ def get_plot_data(metrics: list)->dict:
     return plot_data
 
 def plot_disparate_impact(plot_data: dict)->None:
+    """Plots a grouped bar chart to show group accuracy differences under different epsilon budgets."""
     keys = list(plot_data.keys())
     index = [float(i) for i in ALPHA]
     epsilon_values = [value for value in plot_data[keys[0]]['dir'].keys()]
@@ -99,15 +102,22 @@ def plot_disparate_impact(plot_data: dict)->None:
             e_df = plot_data[key]['dir'][e]['df']
             print(e_df['0.3'])
             df[col_name] = e_df['0.3']
-    df.plot.bar()
-    plt.xlabel("\u03B1")
-    plt.ylabel("Accuracy")
-    plt.grid(lw=0.5)
+    df.plot.bar(figsize=(5.0,5.0), layout="compressed")
+    plt.xlabel(u"\u03B1", fontsize=10)
+    plt.ylabel("Accuracy", fontsize=10)
     plt.ylim(0.77, 0.95)
+    plt.minorticks_on()
+    plt.grid(which='major', lw=0.5)
+    plt.grid(which='minor', axis='y', lw=0.25, linestyle='--')
+    plt.tick_params(which='major', labelsize=8)
+    plt.tick_params(which='minor', bottom=False)
+    plt.tight_layout()
+    plt.legend(loc="best", ncols=2, fontsize=7)
     plt.savefig(f"{PATH}/non_dp/disparate_impact.png", dpi=300)
     return
 
 def plot_accuracy(metrics: list)->None:
+    """Plots the accuracy """
     plot_data = get_plot_data(metrics)
     skews = [SKEW[0], SKEW[-1]]
     fig, axs = plt.subplots(len(metrics),len(skews), figsize=(5.0,4.4), layout="constrained")
@@ -116,12 +126,16 @@ def plot_accuracy(metrics: list)->None:
             data = plot_data[metric]['dir'][key]
             for j, skew in enumerate(skews):
                 axs[i][j].plot(ALPHA, data['df'][skew], label=data['label'])
-                axs[i][j].set_title(f"{float(skew)*100}% Female", fontsize=7)
-                axs[i][j].set_xlabel(plot_data[metric]['plot_labels']['xlabel'], fontsize=6)
-                axs[i][j].set_ylabel(plot_data[metric]['plot_labels']['ylabel'], fontsize=6)
-                axs[i][j].grid(lw=0.5)
+                axs[i][j].set_title(f"{float(skew)*100}% Female", fontsize=9)
+                axs[i][j].set_xlabel(plot_data[metric]['plot_labels']['xlabel'], fontsize=9)
+                axs[i][j].set_ylabel(plot_data[metric]['plot_labels']['ylabel'], fontsize=9)
+                axs[i][j].minorticks_on()
+                axs[i][j].grid(which='minor', axis="y", lw=0.25, linestyle='--')
+                axs[i][j].grid(which='major', lw=0.5)
+                axs[i][j].tick_params(which='major', labelsize=8)
+                axs[i][j].tick_params(which='minor', bottom=False)
                 axs[i][j].set_ylim(plot_data[metric]['plot_labels']['ylim_min'] - 0.005, plot_data[metric]['plot_labels']['ylim_max'] + 0.005)
-    axs[0][0].legend(loc='best', fontsize=8, mode="expand")
+    axs[0][0].legend(loc='best', fontsize=7, mode="expand", ncols=3)
     fig.savefig(f"{PATH}/non_dp/dpvnondp.png", dpi=300)
     plot_disparate_impact(plot_data)
     return
@@ -134,12 +148,16 @@ def plot_eod(metrics: list)->None:
             data = plot_data[metric]['dir'][key]
             for i, skew in enumerate(SKEW):
                 axs[i].plot(ALPHA, data['df'][skew], label=data['label'])
-                axs[i].set_title(f"{float(skew)*100}% Female", fontsize=7)
-                axs[i].set_xlabel(plot_data[metric]['plot_labels']['xlabel'], fontsize=6)
-                axs[i].set_ylabel(plot_data[metric]['plot_labels']['ylabel'], fontsize=6)
-                axs[i].grid(lw=0.5)
+                axs[i].set_title(f"{float(skew)*100}% Female", fontsize=9)
+                axs[i].set_xlabel(plot_data[metric]['plot_labels']['xlabel'], fontsize=9)
+                axs[i].set_ylabel(plot_data[metric]['plot_labels']['ylabel'], fontsize=9)
+                axs[i].minorticks_on()
+                axs[i].grid(which='minor', axis="y", lw=0.25, linestyle='--')
+                axs[i].grid(which='major', lw=0.5)
+                axs[i].tick_params(which='major', labelsize=8)
+                axs[i].tick_params(which='minor', bottom=False)
                 axs[i].set_ylim(plot_data[metric]['plot_labels']['ylim_min'] - 0.005, plot_data[metric]['plot_labels']['ylim_max'] + 0.005)
-    axs[0].legend(loc='best', fontsize=8, mode="expand")
+    axs[0].legend(loc='best', fontsize=7, mode="expand",ncols=3)
     fig.savefig(f"{PATH}/non_dp/eod.png", dpi=300)
     return
 
@@ -151,12 +169,16 @@ def plot_std(metrics: list)->None:
             data = plot_data[metric]['dir'][key]
             for i, skew in enumerate(SKEW):
                 axs[i].plot(ALPHA, data['df'][skew], label=data['label'])
-                axs[i].set_title(f"{float(skew)*100}% Female", fontsize=7)
-                axs[i].set_xlabel(plot_data[metric]['plot_labels']['xlabel'], fontsize=6)
-                axs[i].set_ylabel(plot_data[metric]['plot_labels']['ylabel'], fontsize=6)
-                axs[i].grid(lw=0.5)
+                axs[i].set_title(f"{float(skew)*100}% Female", fontsize=9)
+                axs[i].set_xlabel(plot_data[metric]['plot_labels']['xlabel'], fontsize=9)
+                axs[i].set_ylabel(plot_data[metric]['plot_labels']['ylabel'], fontsize=9)
+                axs[i].minorticks_on()
+                axs[i].grid(which='minor', axis="y", lw=0.25, linestyle='--')
+                axs[i].grid(which='major', lw=0.5)
+                axs[i].tick_params(which='major', labelsize=8)
+                axs[i].tick_params(which='minor', bottom=False)
                 axs[i].set_ylim(plot_data[metric]['plot_labels']['ylim_min'] - 0.005, plot_data[metric]['plot_labels']['ylim_max'] + 0.005)
-    axs[0].legend(loc='best', fontsize=8, mode="expand")
+    axs[0].legend(loc='best', fontsize=7, mode="expand", ncols=3)
     fig.savefig(f"{PATH}/non_dp/std.png", dpi=300)
     return
 
@@ -167,17 +189,19 @@ def plot_confusion_matrix()->None:
         with open(f"{PATH}/{dir}/1/0.3/results.json", "r") as fp:
             data = json.load(fp)
         final_data = data["final_metrics"]
-        for alpha in [ALPHA[0],ALPHA[1],ALPHA[-1]]:
+        for alpha in [ALPHA[0],ALPHA[-1]]:
             min_cm = np.array([[final_data["server_min_tn"][alpha],final_data["server_min_fp"][alpha]], [final_data["server_min_fn"][alpha],final_data["server_min_tp"][alpha]]])
             maj_cm = np.array([[final_data["server_maj_tn"][alpha],final_data["server_maj_fp"][alpha]], [final_data["server_maj_fn"][alpha],final_data["server_maj_tp"][alpha]]])
             total_cm = np.add(min_cm, maj_cm)
             for cm, file in zip([min_cm, maj_cm, total_cm], ["min", "maj", "total"]):
                 disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["income < $50k","income >= $50k"])
-                disp.plot(cmap=plt.cm.Blues).figure_.savefig(f"{PATH}/non_dp/{file}_{dir}_{alpha}_0.3_cm.png")
+                disp.plot(cmap=plt.cm.Blues)
+                plt.tight_layout()
+                disp.figure_.savefig(f"{PATH}/non_dp/{file}_{dir}_{alpha}_0.3_cm.png")
                 plt.close()
     return
 
 plot_accuracy(['server_maj_accuracy', 'server_min_accuracy'])
-#plot_std(['server_demographic_parity'])
-#plot_eod(['server_equalised_odds'])
-#plot_confusion_matrix()
+plot_std(['server_demographic_parity'])
+plot_eod(['server_equalised_odds'])
+plot_confusion_matrix()

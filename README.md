@@ -1,95 +1,58 @@
----
-tags: [quickstart, vision, fds]
-dataset: [CIFAR-10]
-framework: [torch, torchvision]
----
+# Privacy, Fairness and Accuracy Trade-offs in Federated Learning
+## Description
+This is the description
 
-# Federated Learning with PyTorch and Flower (Quickstart Example)
-
-This introductory example to Flower uses PyTorch, but deep knowledge of PyTorch is not necessarily required to run the example. However, it will help you understand how to adapt Flower to your use case. Running this example in itself is quite easy. This example uses [Flower Datasets](https://flower.ai/docs/datasets/) to download, partition and preprocess the CIFAR-10 dataset.
-
-## Set up the project
-
-### Fetch the app
-
-Install Flower:
-
-```shell
-pip install flwr
+## Prerequisites
+The following dependencies are required to run the project files:
+- flwr[\simulation]
+- flwr_datasets[\vision]
+- torch
+- torchvision
+- opacus
+- toml-cli
+## Installation
+Use the pip package manager to install project dependencies:
+```bash
+pip install git+https://github.com/JoeSharp96/fairness-privacy-trade-offs
 ```
+## Usage
+The Flower framework is capable of simulating multiple actors in parallel, depending on the number of resources each client is given access to.
 
-Fetch the app:
-
-```shell
-flwr new @flwrlabs/quickstart-pytorch
-```
-
-This will create a new directory called `quickstart-pytorch` with the following structure:
-
-```shell
-quickstart-pytorch
-├── pytorchexample
-│   ├── __init__.py
-│   ├── client_app.py   # Defines your ClientApp
-│   ├── server_app.py   # Defines your ServerApp
-│   └── task.py         # Defines your model, training and data loading
-├── pyproject.toml      # Project metadata like dependencies and configs
-└── README.md
-```
-
-### Install dependencies and project
-
-Install the dependencies defined in `pyproject.toml` as well as the `pytorchexample` package.
+You can specify the number of available CPUs and portion of GPU to each actor with the following command:
 
 ```bash
-pip install -e .
+flwr federation simulation-config --client-resources-num-gpus num-gpus --client-resources-num-cpus num-cpus
 ```
+Replace ```num-gpus``` with the a float value representing the percentage of the GPU each client should use (```0.25``` represents 25%).
 
-## Run the project
+Replace ```num-cpus``` with the an integer value representing the number of CPU cores each client should use. 
 
-You can run your Flower project in both _simulation_ and _deployment_ mode without making changes to the code. If you are starting with Flower, we recommend you using the _simulation_ mode as it requires fewer components to be launched manually. By default, `flwr run` will make use of the Simulation Engine.
+The total actors that run in parallel is equal to $min(SYS_CPUS \over num_cpus, SYS_GPUS \over num_gpus)$.
 
-### Run with the Simulation Engine
-
-> [!TIP]
-> This example runs faster when the `ClientApp`s have access to a GPU. Check the [Simulation Engine documentation](https://flower.ai/docs/framework/how-to-run-simulations.html) to learn more about Flower simulations and how to optimize them.
-
+By defualt, the simulation config is set to:
 ```bash
-# Run with the default federation (CPU only)
-flwr run .  --stream
+flwr federation simulation-config --client-resources-num-gpus 0.0 --client-resources-num-cpus 2
 ```
 
-You can also override some of the settings for your `ClientApp` and `ServerApp` defined in `pyproject.toml`. For example:
+There are three simulations that can be run:
+- Non-DP
+- Strict DP
+- Moderate DP
 
+Each can be run using the following shell scripts:
 ```bash
-flwr run . --run-config "num-server-rounds=5 learning-rate=0.05"  --stream
+bash adult_non_dp.sh
+bash adult_moderate_dp.sh
+bash adult_strict_dp.sh
 ```
 
-> [!TIP]
-> For a more detailed walk-through check our [quickstart PyTorch tutorial](https://flower.ai/docs/framework/tutorial-quickstart-pytorch.html)
+## Outputs
+Metrics and outputs can be found in the 'outputs' directory. This will be created on the first run of a simulation.
 
-### Run with the Deployment Engine
-
-Follow this [how-to guide](https://flower.ai/docs/framework/how-to-run-flower-with-deployment-engine.html) to run the same app in this example but with Flower's Deployment Engine. After that, you might be intersted in setting up [secure TLS-enabled communications](https://flower.ai/docs/framework/how-to-enable-tls-connections.html) and [SuperNode authentication](https://flower.ai/docs/framework/how-to-authenticate-supernodes.html) in your federation.
-
-If you are already familiar with how the Deployment Engine works, you may want to learn how to run it using Docker. Check out the [Flower with Docker](https://flower.ai/docs/framework/docker/index.html) documentation.
-# fairness-privacy-trade-offs
-
-
-## Ideal Non-IID Hyperparameters as of 01/07/2026
-Dataset = FMNIST,
-Alpha = 0.5
-
-|       | FedAvg | q-FedAvg |
-|---    |---    |   ---|
-|LR | 0.001 | 0.005 |
-|q| 0 | 0.001 |
-
-## Ideal IID Hyperparameters as of 01/07/2026
-Dataset = FMNIST,
-Alpha = 1000
-
-|       | FedAvg | q-FedAvg |
-|---    |---    |   ---|
-|LR | 0.05 | 0.05 |
-|q| 0 | 0.005 |
+Collected metrics include:
+- Global Accuracy
+- Group Accuracy (Minority and Majority)
+- Confusion Matrix for both minority and majority groups
+- Equalised Odds Difference
+- Equal Opportunity Difference
+- Demographic Parity Difference
