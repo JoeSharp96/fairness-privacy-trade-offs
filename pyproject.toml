@@ -31,35 +31,35 @@ clientapp = "source.client_app:app"
 
 [tool.flwr.app.config]
 # Server Params
-num-server-rounds = 1
+num-server-rounds = 30
 min-available-nodes = 5
 fraction-evaluate = 0.2
 fraction-train = 0.2
 save-model = true
-out-dir = "adult_non_dp.sh_1787517322"
+out-dir = "adult_strict_dp.sh_1787697684"
 
 # Data settings
 dataset = "adult"
 distribution = "non-iid"
-batch-size = 32
+batch-size = 128
 num-partitions = 5
 min-partition-size = 16
-alpha = 500.0
-skew = 0.3
+alpha = 0.2
+skew = 0.05
 target-feature = "income"
 sensitive-feature = "sex"
 sensitive-value = "Female"
-seed = 10
+seed = 1
 
 # Training Parameters
 local-epochs = 1
-learning-rate = 0.005
+learning-rate = 0.001
 
 # DP Settings
-dp-enabled = false
-epsilon = 5.0
+dp-enabled = true
+epsilon = 1.0
 delta = 1e-05
 max-grad-norm = 1.0
-max-physical-batch-size = 32
+max-physical-batch-size = 128
 
 

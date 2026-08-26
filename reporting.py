@@ -91,14 +91,23 @@ def plot_disparate_impact(plot_data: dict)->None:
     """Plots a grouped bar chart to show group accuracy differences under different epsilon budgets."""
     keys = list(plot_data.keys())
     index = [float(i) for i in ALPHA]
-    epsilon_values = [value for value in plot_data[keys[0]]['dir'].keys()]
-    epsilon_values = sorted(epsilon_values,reverse=True)
+    string_values = [value for value in plot_data[keys[0]]['dir'].keys()]
+    if "non_dp" in string_values and len(string_values) > 1:
+        string_values.remove("non_dp")
+        float_values = [float(value) for value in string_values]
+        float_values.sort(reverse=True)
+        epsilon_values = ["non_dp"] + [str(value) for value in float_values]
+    elif "non_dp" not in string_values:
+        float_values = [float(value) for value in string_values]
+        float_values.sort(reverse=True)
+        epsilon_values = [str(value) for value in float_values]
+    else:
+        epsilon_values = string_values
     df = pd.DataFrame(index=index)
     for key in keys:
         for e in epsilon_values:
             col_name = key + '_' + e
             e_df = plot_data[key]['dir'][e]['df']
-            print(e_df['0.3'])
             df[col_name] = e_df['0.3']
     df.plot.bar(figsize=(5.0,5.0), layout="compressed")
     plt.xlabel(u"\u03B1", fontsize=10)

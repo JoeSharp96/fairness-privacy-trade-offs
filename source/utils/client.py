@@ -18,7 +18,7 @@ from sklearn.preprocessing import OrdinalEncoder, StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
 from datasets import concatenate_datasets
 from sklearn.model_selection import train_test_split
-from flwr.app import ArrayRecord, Context, Message, MetricRecord, RecordDict
+from flwr.app import RecordDict
 from datasets import DatasetDict
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -179,17 +179,14 @@ def skew_and_split(sensitive_feature: str, sensitive_value: str | float, _skew: 
             dataset_dict = split(dataset_dict)
         # Convert HuggingFace dataset to pandas for preprocessing
         dataset = dataset_dict["train"]
+        # Split dataset into minority and majority group
         minority_dataset = dataset.filter(lambda x: x[sensitive_feature] == sensitive_value)
         majority_dataset = dataset.filter(lambda x: x[sensitive_feature] != sensitive_value)
-
+        # Reduce total minority skew.
         total_majority = len(majority_dataset)
         required_minority = math.floor((total_majority * _skew) / (1 - _skew))
         minority_dataset = minority_dataset.shuffle(seed=seed).select(range(required_minority))
-        total_minority = len(minority_dataset)
-        print(f"""Total training data: {total_majority + total_minority}
-        Minority = {total_minority} | {(total_minority / (total_minority+total_majority))*100}%
-        Majority = {total_majority} | {(total_majority / (total_minority+total_majority))*100}%""")
-        
+        # Return skewed dataset.
         skewed_dataset = concatenate_datasets([majority_dataset, minority_dataset]).shuffle(seed=seed)
         dataset_dict["train"] = skewed_dataset
         dataset_dict.pop("test")
@@ -253,13 +250,12 @@ def load_data(
         X, y, test_size=0.2, random_state=seed
     )
 
+    # Standardize numeric values using StandardScaler()
     numeric_features = X.select_dtypes(include=["float64", "int64", "bool"]).columns
     numeric_transformer = Pipeline(steps=[("scaler", StandardScaler())])
-
     preprocessor = ColumnTransformer(
         transformers=[("num", numeric_transformer, numeric_features)]
     )
-
     X_train = preprocessor.fit_transform(X_train)
     X_test = preprocessor.transform(X_test)
 

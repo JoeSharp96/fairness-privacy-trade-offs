@@ -76,23 +76,29 @@ class ServerConfig:
         )
         dataset = fds.load_split("test").with_format("pandas")[:]
         dataset.dropna(inplace=True)
-
+        # Data requires preprocessing for use in neural network.
+        # Convert categorical columns into ordinal values.
         categorical_cols = dataset.select_dtypes(include=["object"]).columns
         ordinal_encoder = OrdinalEncoder()
         dataset[categorical_cols] = ordinal_encoder.fit_transform(dataset[categorical_cols])
 
+        # Add target feature to list of columns to be dropped from features used in training.
         self.drop_columns.append(self.target_feature)
         X = dataset.drop(self.drop_columns, axis=1)
         y = dataset[self.target_feature]
+
+        # Save the column index value of the sensitive feature to be used in tracking fairness metrics
         self.sensitive_col_index = X.columns.get_loc(self.model.sensitive_feature)
+
+        # Use StandardScaler() standardize features in training and testing.
         numeric_features = X.select_dtypes(include=["float64", "int64"]).columns
         numeric_transformer = Pipeline(steps=[("scaler", StandardScaler())])
-
         preprocessor = ColumnTransformer(
             transformers=[("num", numeric_transformer, numeric_features)]
         )
         X = preprocessor.fit_transform(X)
 
+        # Convert dataset to tensor for use in neural network.
         X_test_tensor = torch.tensor(X, dtype=torch.float32)
         y_test_tensor = torch.tensor(y.values, dtype=torch.float32).view(-1, 1)
 
@@ -110,6 +116,7 @@ class ServerConfig:
         else:
             minority_group = unique_groups[0]
             majority_group = unique_groups[1]
+        # Converts tensor value to binary value for ease of use.
         min_condition = (x_sensitive_feature == minority_group)
         maj_condition = (x_sensitive_feature == majority_group)
         x_sensitive_feature[min_condition] = 0.0
@@ -117,11 +124,12 @@ class ServerConfig:
         unique_groups, counts = np.unique(x_sensitive_feature, return_counts=True)
         metrics = {}
         for value in unique_groups:
+            # Get the Predicted Positive Rate
             mask = (x_sensitive_feature == value)
             y_true_group = y_true[mask]
             y_pred_group = y_pred[mask]
 
-            # Get the predicted positive rate for Demographic Parity Diff
+            # Get the predicted positive rate for Statistical Parity Diff
             ppr = np.mean(y_pred_group == 1)
 
             # Get the confusion matrix to find the Equal Opportunity and Equalised Odds Diff
@@ -142,11 +150,12 @@ class ServerConfig:
         print(f'=== Group Metrics ===')
         for key in metrics.keys():
             print(f"Group {key}: PPR = {metrics[key]['PPR']:.3f}, TPR = {metrics[key]['TPR']:.3f}, FPR = {metrics[key]['FPR']:.3f}, ACC = {metrics[key]['ACC']:.3f}")
-        print("=== Fairness Violations ===")
+        print("=== Fairness Metrics ===")
         print(f"Demographic Parity: {abs(metrics[g1]['PPR']-metrics[g2]['PPR']):.3f}")
         print(f"Equalised Odds: {max(abs(metrics[g1]['TPR']-metrics[g2]['TPR']),abs(metrics[g1]['FPR']-metrics[g2]['FPR'])):.3f}")
         print(f"Equal Opportunity: {abs(metrics[g1]['TPR']-metrics[g2]['TPR']):.3f}")
         print(f"Equalised Accuracy: {abs(metrics[g1]['ACC']-metrics[g2]['ACC']):.3f}")
+        # Convert numpy to float to pass in the Flower metric record object
         demographic_parity = float(abs(metrics[g1]['PPR']-metrics[g2]['PPR']))
         equalised_odds = float(max(abs(metrics[g1]['TPR']-metrics[g2]['TPR']),abs(metrics[g1]['FPR']-metrics[g2]['FPR'])))
         equal_opportunity = float(abs(metrics[g1]['TPR']-metrics[g2]['TPR']))
@@ -187,10 +196,6 @@ class ServerConfig:
         y_pred = []
         x_sensitive_feature = []
         with torch.no_grad():
-            # y_batch is true
-            # prediction is prediction
-            # I can collect the fairness metrics by examining these in relationship to the sensitive attributes
-            # Maybe collect all results into a list?
             for X_batch, y_batch in self.testloader:
                 X_batch = X_batch.to(device)
                 y_batch = y_batch.to(device)
@@ -200,14 +205,17 @@ class ServerConfig:
                 predicted = (outputs > 0.5).float()
                 total += y_batch.size(0)
                 correct += (predicted == y_batch).sum().item()
+                # Gather the true and predicted values for fairness metrics from each data sample in batch.
                 y_true.append(y_batch.flatten().float())
                 y_pred.append(predicted.flatten().float())
                 x_sensitive_feature.append(X_batch[:, self.sensitive_col_index].flatten())
         accuracy = correct / total
         loss = loss / len(self.testloader)
+        # Convert nd array of tensors into 1D array, move off the GPU as data is converted to numpy
         y_true = torch.cat(y_true, dim=0).cpu()
         y_pred = torch.cat(y_pred, dim=0).cpu()
         x_sensitive_feature = torch.cat(x_sensitive_feature, dim=0).cpu()
+        # Get fairness metrics
         metrics = self.group_fairness_metrics(y_true.numpy(), y_pred.numpy(), x_sensitive_feature.numpy())
         metrics["eval_acc"] = accuracy
         metrics["eval_loss"] = loss
